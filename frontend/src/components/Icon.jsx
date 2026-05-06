@@ -1,0 +1,62 @@
+import React from 'react';
+
+const ICON_PATHS = {
+  home: <><path d="M3 10.5L12 3l9 7.5" /><path d="M5 9.5V20a1 1 0 001 1h12a1 1 0 001-1V9.5" /></>,
+  board: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18M15 3v18" /></>,
+  list: <><path d="M8 6h13M8 12h13M8 18h13" /><circle cx="4" cy="6" r="0.5" fill="currentColor" /><circle cx="4" cy="12" r="0.5" fill="currentColor" /><circle cx="4" cy="18" r="0.5" fill="currentColor" /></>,
+  sprint: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  docs: <><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></>,
+  bug: <><path d="M8 4h8M12 4v3" /><rect x="6" y="7" width="12" height="10" rx="6" /><path d="M3 13h3M18 13h3M4 8l2 1M20 8l-2 1M4 18l2-1M20 18l-2-1" /></>,
+  log: <><path d="M4 6h16M4 10h16M4 14h10M4 18h10" /><circle cx="18" cy="16" r="3" /><path d="M18 14v2l1 1" /></>,
+  layers: <><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5M3 18l9 5 9-5" /></>,
+  plus: <><path d="M12 5v14M5 12h14" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 01-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z" /></>,
+  check: <><path d="M5 12l5 5L20 7" /></>,
+  x: <><path d="M6 6l12 12M6 18L18 6" /></>,
+  chevronRight: <><path d="M9 6l6 6-6 6" /></>,
+  chevronDown: <><path d="M6 9l6 6 6-6" /></>,
+  chevronLeft: <><path d="M15 6l-6 6 6 6" /></>,
+  more: <><circle cx="12" cy="6" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="18" r="1" fill="currentColor" /></>,
+  filter: <><path d="M4 5h16l-6 8v6l-4-2v-4z" /></>,
+  sort: <><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
+  link: <><path d="M10 14a4 4 0 005.5 0l3-3a4 4 0 10-5.5-5.5l-1 1" /><path d="M14 10a4 4 0 00-5.5 0l-3 3a4 4 0 105.5 5.5l1-1" /></>,
+  tag: <><path d="M3 8v5l9 9 9-9-9-9H8a5 5 0 00-5 4z" /><circle cx="8" cy="9" r="1" fill="currentColor" /></>,
+  flag: <><path d="M5 21V4M5 4h13l-3 5 3 5H5" /></>,
+  rotate: <><path d="M3 12a9 9 0 0115-6.7L21 8M21 3v5h-5" /><path d="M21 12a9 9 0 01-15 6.7L3 16M3 21v-5h5" /></>,
+  arrowRight: <><path d="M5 12h14M13 5l7 7-7 7" /></>,
+  arrowUp: <><path d="M12 19V5M5 12l7-7 7 7" /></>,
+  cmd: <><path d="M6 6h12v12H6z" /><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" /></>,
+  box: <><path d="M21 8l-9-5-9 5v8l9 5 9-5z" /><path d="M3 8l9 5 9-5M12 13v10" /></>,
+  code: <><path d="M16 18l6-6-6-6M8 6l-6 6 6 6" /></>,
+  bold: <><path d="M7 5h6a3.5 3.5 0 010 7H7zM7 12h7a3.5 3.5 0 010 7H7z" /></>,
+  italic: <><path d="M19 4h-9M14 20H5M15 4l-6 16" /></>,
+  h1: <><path d="M4 6v12M12 6v12M4 12h8M16 18V8l-2 2" /></>,
+  h2: <><path d="M4 6v12M12 6v12M4 12h8M16 9a2 2 0 014 0c0 1-.5 1.7-1.5 2.5L16 18h4" /></>,
+  codeBlock: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 10l-2 2 2 2M15 10l2 2-2 2" /></>,
+  divider: <><path d="M3 12h18" /></>,
+  inlineCode: <><path d="M8 8L4 12l4 4M16 8l4 4-4 4M14 6l-4 12" /></>,
+  kbd: <><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 14h.01M11 14h2M16.5 14h.5" /></>,
+  arrowDown: <><path d="M12 5v14M5 12l7 7 7-7" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></>,
+  pin: <><path d="M12 17v5M9 9l-3 3 6 6 3-3M14 4l-3 3 6 6 3-3z" /></>,
+  inbox: <><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.5 5h13L22 12v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6z" /></>,
+  upload: <><path d="M4 16v2a2 2 0 002 2h8a2 2 0 002-2v-2" /><path d="M12 12V4" /><path d="M8 8l4-4 4 4" /></>,
+  snippet: <><path d="M8 6l4-4 4 4M8 18l4 4 4-4M4 12h16" /></>,
+  copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></>,
+  eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
+  eyeOff: <><path d="M3 3l18 18" /><path d="M10.6 6.1A10.5 10.5 0 0112 6c6.5 0 10 7 10 7a17.5 17.5 0 01-3.3 4.1M6.6 6.6A17.4 17.4 0 002 13s3.5 7 10 7c1.7 0 3.2-.4 4.5-1" /><path d="M9.9 9.9a3 3 0 004.2 4.2" /></>,
+  drag: <><circle cx="9" cy="6" r="1" fill="currentColor" /><circle cx="15" cy="6" r="1" fill="currentColor" /><circle cx="9" cy="12" r="1" fill="currentColor" /><circle cx="15" cy="12" r="1" fill="currentColor" /><circle cx="9" cy="18" r="1" fill="currentColor" /><circle cx="15" cy="18" r="1" fill="currentColor" /></>,
+  trash: <><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /></>,
+};
+
+export const Icon = ({ name, size = 16, className = '', strokeWidth = 1.5 }) => {
+  const props = {
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth, strokeLinecap: 'round', strokeLinejoin: 'round', className,
+  };
+  const paths = ICON_PATHS[name];
+  if (!paths) return <svg {...props} />;
+  return <svg {...props}>{paths}</svg>;
+};
