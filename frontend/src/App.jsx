@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { DEVSPACE_DATA } from './data/data';
+import { useAuth } from './context/AuthContext';
+import { LoginScreen } from './components/LoginScreen';
 import { Icon } from './components/Icon';
 import { Pill, ProgressBar } from './components/Components';
 import { Dashboard } from './components/Dashboard';
@@ -311,6 +313,11 @@ const ProjectView = ({ project, projects, tasks, sprints, onTaskClick }) => {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const { isLoggedIn } = useAuth();
+
+  // Auth gate — show login screen until the user has a valid token in memory
+  if (!isLoggedIn) return <LoginScreen />;
+
   const [projects] = useState(initialProjects);
   const [tasks] = useState(initialTasks);
   const [sprints] = useState(initialSprints);
