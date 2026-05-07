@@ -1,0 +1,67 @@
+# ─── Python / Django ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# Django
+*.sqlite3
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# ─── Environment & secrets ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# ─── Frontend / Node ──────────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── OS & editor artifacts ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.suo
+*.sw?
+*.sln
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# ─── Migrations (keep initial, ignore generated during dev if preferred) ──────
+# Uncomment the next two lines if you want to ignore all migration files.
+# Only do this if you are the sole developer and regenerate from scratch.
+# backend/api/migrations/
+# !backend/api/migrations/__init__.py
+
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
