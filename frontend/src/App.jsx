@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import react, { useState } from 'react';
 import { DEVSPACE_DATA } from './data/data';
 import { useAuth } from './context/AuthContext';
 import { LoginScreen } from './components/LoginScreen';

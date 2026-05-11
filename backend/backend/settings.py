@@ -34,8 +34,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',       # Django REST Framework — serializers, viewsets, browsable API
     'corsheaders',          # Adds Access-Control-* headers so React (port 5173) can call this API
+    'users',                # Custom user model — must come before 'api' so FK references resolve
     'api',                  # Our app — models, serializers, views live here
 ]
+
+# Tell Django to use our custom user model instead of the built-in one.
+# This must be set before the first migration and never changed after real data exists.
+AUTH_USER_MODEL = 'users.CustomUser'
 
 # --- Middleware ---------------------------------------------------------------
 # corsheaders.CorsMiddleware MUST come before CommonMiddleware.
