@@ -425,6 +425,235 @@ When you mutate data (create/update/delete a task), you call `queryClient.invali
 
 ---
 
+### The hooks pattern — `useQuery` vs `useMutation`
+
+We split every resource into two types of hooks:
+
+**`useQuery` — reading data (GET)**
+
+```js
+export function useSprints(projectId) {
+  return useQuery({
+    queryKey: ['sprints', projectId],
+    queryFn: () => api.get('/sprints/', { params: { project: projectId } }).then(res => res.data),
+    enabled: !!projectId,
+  });
+}
+```
+
+- Runs **automatically** when the component mounts
+- Re-runs when `projectId` changes (TanStack detects the key changed)
+- `enabled: !!projectId` — don't fetch if `projectId` is undefined/null. Without this you'd get a request to `/api/sprints/?project=undefined` on first render.
+- Returns `{ data, isLoading, error }` which the component consumes directly
+
+**`useMutation` — writing data (POST/PATCH/DELETE)**
+
+```js
+export function useCreateSprint() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.post('/sprints/', data).then(res => res.data),
+    onSuccess: (newSprint) => {
+      queryClient.invalidateQueries({ queryKey: ['sprints', newSprint.project] });
+    },
+  });
+}
+```
+
+- Does **nothing** until you explicitly call it
+- In a component: `const createSprint = useCreateSprint()` then `createSprint.mutate({ name: 'Sprint 4', project: 'devspace' })`
+- `onSuccess` fires automatically when `mutationFn` resolves — you never call it manually
+- The argument to `onSuccess` is whatever `mutationFn` resolved to (the API response)
+
+---
+
+### How TanStack deduplicates requests
+
+The QueryClient holds a global cache (the instance from `queryClient.js`). When a component calls `useQuery({ queryKey: ['projects'] })`:
+
+1. TanStack looks up `['projects']` in the cache
+2. If fresh data exists → return it immediately, **no network call**
+3. If a request for that key is already in flight → **subscribe to the same promise**, don't fire another request
+4. Only if nothing exists → fire the HTTP request
+
+So if two components both call `useProjects()`, the first to mount fires the GET. The second, mounting milliseconds later, gets the same cached result. **One network call, two consumers.**
+
+This only works when the data is actually the same. `['sprints', 'devspace']` and `['sprints', 'my-app']` are different keys → separate cache entries → separate requests.
+
+---
+
+### The cache is a key→value map
+
+```
+['projects']                    → { data: [...projects], status: 'success' }
+['sprints', 'devspace']         → { data: [...sprints],  status: 'success' }
+['tasks', 'devspace', 's-1']    → { data: [...tasks],    status: 'success' }
+['tasks', 'devspace', 'backlog']→ { data: [...tasks],    status: 'loading' }
+```
+
+The key is the address. The full API response is stored at that address. `invalidateQueries` marks an address as stale — TanStack will re-fetch it next time a component needs it.
+
+---
+
+### `queryFn` return value = `data`
+
+Whatever your `queryFn` resolves to becomes the value of `data` in the component. That's why we always chain `.then(res => res.data)` — without it, `data` would be the full axios response object `{ status: 200, headers: {...}, data: [...] }` and you'd have to write `data.data` in your component.
+
+```js
+// queryFn resolves to an array → data is an array ✅
+queryFn: () => api.get('/tasks/').then(res => res.data)
+
+// queryFn resolves to the full axios response → data.data is the array ❌
+queryFn: () => api.get('/tasks/')
+```
+
+Same rule applies to `mutationFn` — the `.then(res => res.data)` there determines what `onSuccess` receives as its argument.
+
+---
+
+### Prefix matching in `invalidateQueries`
+
+When you invalidate with a partial key, TanStack marks stale **every cache entry whose key starts with** that prefix:
+
+```js
+queryClient.invalidateQueries({ queryKey: ['tasks', 'devspace'] })
+```
+
+```
+['tasks', 'devspace', 's-1']       ✅ invalidated
+['tasks', 'devspace', 'backlog']   ✅ invalidated
+['tasks', 'devspace', 's-2']       ✅ invalidated
+['tasks', 'my-app', 's-1']         ❌ not touched
+['sprints', 'devspace']            ❌ not touched
+```
+
+This is why mutations invalidate with just `['tasks', projectId]` — one call clears the sprint view, the backlog view, and every other task query for that project.
+
+---
+
+### Three ways to write `queryFn` / `mutationFn`
+
+```js
+// Option 1 — inline chain (best for simple fetches)
+queryFn: () => api.get('/tasks/').then(res => res.data),
+
+// Option 2 — async/await (better when you need to transform the response)
+queryFn: async () => {
+  const res = await api.get('/tasks/');
+  return res.data;
+},
+
+// Option 3 — named function (best when the logic is complex or reused)
+async function fetchTasks(projectId) {
+  const res = await api.get('/tasks/', { params: { project: projectId } });
+  return res.data;
+}
+queryFn: () => fetchTasks(projectId),
+```
+
+All three are equivalent. Use Option 1 for straightforward fetches (which is everything in this project). Use Option 2 when you need to do something with the response before returning. Use Option 3 when the same fetch is needed in more than one place.
+
+---
+
+### The full mutation cycle
+
+```
+User submits form
+  → createSprint.mutate(data)
+    → POST /api/sprints/
+      → onSuccess(newSprint): invalidate ['sprints', newSprint.project]
+        → useSprints sees its cache is stale
+          → GET /api/sprints/?project=:id re-fires automatically
+            → component re-renders with updated list
+```
+
+You never manually update state after a mutation. You just invalidate the right cache key and TanStack handles the re-fetch and re-render.
+
+---
+
+### The six hook files we built
+
+Every resource gets its own file in `src/hooks/`. Each file exports a `useQuery` hook for reading and one or more `useMutation` hooks for writing.
+
+**`useProjects.js`**
+```js
+useProjects()          // GET /api/projects/  — all projects for the logged-in user
+useCreateProject()     // POST /api/projects/
+```
+Key is just `['projects']` — no extra scope needed because the Django viewset already filters by `owner=request.user`. There is only one projects list per session.
+
+---
+
+**`useSprints.js`**
+```js
+useSprints(projectId)  // GET /api/sprints/?project=:id
+useCreateSprint()      // POST /api/sprints/
+```
+Key is `['sprints', projectId]` — sprints for different projects are different cache entries. `enabled: !!projectId` prevents a fetch when no project is selected yet.
+
+---
+
+**`useTasks.js`**
+```js
+useTasks(projectId, sprintId)  // GET /api/tasks/?project=:id&sprint=:id  — kanban board
+useBacklog(projectId)          // GET /api/tasks/?project=:id&sprint=null  — backlog view
+useCreateTask()                // POST /api/tasks/
+useUpdateTask()                // PATCH /api/tasks/:id/
+```
+Two read hooks because the kanban and backlog hit the same endpoint with different params — they need different cache keys so they don't share stale data.
+
+`useBacklog` uses the string `'backlog'` in the key (`['tasks', projectId, 'backlog']`) to distinguish it from a sprint-scoped query. Without it, `['tasks', projectId, undefined]` and `['tasks', projectId, 'backlog']` could collide.
+
+`useUpdateTask` destructures `id` out of the payload to build the URL, then spreads the rest as the body:
+```js
+mutationFn: ({ id, ...data }) => api.patch(`/tasks/${id}/`, data)
+// mutate({ id: 'DS-001', status: 'Done' })
+// → PATCH /api/tasks/DS-001/  body: { status: 'Done' }
+```
+
+Both mutations invalidate with just `['tasks', projectId]` — prefix matching means this wipes the sprint view, backlog, and any other task cache for that project at once.
+
+---
+
+**`useDocs.js`**
+```js
+useDocs(projectId)    // GET /api/docs/?project=:id
+useCreateDoc()        // POST /api/docs/
+useUpdateDoc()        // PATCH /api/docs/:id/
+useDeleteDoc()        // DELETE /api/docs/:id/
+```
+Full CRUD. `useDeleteDoc` has a special pattern because DELETE returns no response body — we can't read `projectId` from the server response. Instead we pass it in with the variables and read it from the second argument of `onSuccess`:
+```js
+mutationFn: ({ id, projectId }) => api.delete(`/docs/${id}/`),
+onSuccess: (_, variables) => {
+  // _ is the empty response body, variables is what we passed to mutate()
+  queryClient.invalidateQueries({ queryKey: ['docs', variables.projectId] });
+}
+```
+
+---
+
+**`useDevLog.js`**
+```js
+useDevLog(projectId)        // GET /api/devlog/?project=:id
+useCreateDevLogEntry()      // POST /api/devlog/
+```
+Read + create only. Dev log entries are append-only by design — you write entries, you don't edit or delete them.
+
+---
+
+**`useSnippets.js`**
+```js
+useSnippets(projectId?)     // GET /api/snippets/ or /api/snippets/?project=:id
+useCreateSnippet()          // POST /api/snippets/
+useDeleteSnippet()          // DELETE /api/snippets/:id/
+```
+Snippets are the only resource that can be global (no project) or project-scoped. `projectId` is optional. The key uses `projectId ?? 'all'` so that when no project is passed, the cache entry is `['snippets', 'all']` instead of `['snippets', undefined]` — a cleaner, more readable key.
+
+Both mutations invalidate the entire `['snippets']` prefix to refresh both the global list and any project-scoped list at the same time.
+
+---
+
 ## 7. Token in Memory (Security)
 
 ### Why not localStorage?
