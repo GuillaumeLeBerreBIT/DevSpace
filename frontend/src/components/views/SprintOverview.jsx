@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
+import { Button } from '../ui/button';
 import { TypePill, StatusPill, PriorityDot, PointsBadge, CarryoverBadge, ProgressRing, ProgressBar, PlaceholderRect } from '../Components';
 import { Kanban } from '../Kanban';
 
@@ -15,10 +16,10 @@ export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint }) =
           </div>
           <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>No active sprint</h3>
           <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--fg-muted)' }}>Create a sprint to start organizing your work into focused cycles.</p>
-          <button className="btn btn--primary" onClick={onCreateSprint}>
+          <Button onClick={onCreateSprint}>
             <Icon name="plus" size={14} />
             Create sprint
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -47,10 +48,10 @@ export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint }) =
             )}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn--sm" onClick={onCreateSprint}>
+            <Button size="sm" variant="secondary" onClick={onCreateSprint}>
               <Icon name="plus" size={13} />
               New sprint
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -69,14 +70,14 @@ export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint }) =
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
         <ViewToggle view={view} onChange={setView} />
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button className="btn btn--ghost btn--sm">
+          <Button variant="ghost" size="sm">
             <Icon name="filter" size={13} />
             Filter
-          </button>
-          <button className="btn btn--ghost btn--sm">
+          </Button>
+          <Button variant="ghost" size="sm">
             <Icon name="sort" size={13} />
             Sort
-          </button>
+          </Button>
         </div>
       </div>
 

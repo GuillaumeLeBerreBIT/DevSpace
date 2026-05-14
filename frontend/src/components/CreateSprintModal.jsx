@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Icon } from './Icon';
+import React, { useState } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { Plus } from 'lucide-react';
 
 export const CreateSprintModal = ({ onClose, onCreate, nextNum }) => {
   const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
   const [dateRange, setDateRange] = useState('');
   const [capacity, setCapacity] = useState(30);
-
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -20,94 +19,43 @@ export const CreateSprintModal = ({ onClose, onCreate, nextNum }) => {
   };
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', animation: 'fadeIn 0.15s ease' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, width: 480, maxWidth: '90vw', animation: 'slideUp 0.2s ease', overflow: 'hidden' }}
-      >
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--fg)' }}>Create sprint</h3>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--fg-dim)' }}>Sprint #{nextNum}</p>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-120">
+        <DialogHeader>
+          <DialogTitle>Create sprint</DialogTitle>
+          <DialogDescription>Sprint #{nextNum}</DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 py-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sprint-name">Sprint name <span className="text-primary">*</span></Label>
+            <Input id="sprint-name" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder={`Sprint ${nextNum}`} required />
           </div>
-          <button className="btn btn--ghost btn--icon" onClick={onClose}>
-            <Icon name="x" size={16} />
-          </button>
-        </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Field label="Sprint name" required>
-            <input
-              autoFocus
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder={`Sprint ${nextNum}`}
-              style={inputStyle}
-              required
-            />
-          </Field>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sprint-goal">Goal</Label>
+            <Textarea id="sprint-goal" value={goal} onChange={e => setGoal(e.target.value)} placeholder="What does this sprint aim to achieve?" rows={3} />
+          </div>
 
-          <Field label="Goal">
-            <textarea
-              value={goal}
-              onChange={e => setGoal(e.target.value)}
-              placeholder="What does this sprint aim to achieve?"
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-            />
-          </Field>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sprint-dates">Date range</Label>
+            <Input id="sprint-dates" value={dateRange} onChange={e => setDateRange(e.target.value)} placeholder="e.g. May 6 – May 19" />
+          </div>
 
-          <Field label="Date range">
-            <input
-              value={dateRange}
-              onChange={e => setDateRange(e.target.value)}
-              placeholder="e.g. May 6 – May 19"
-              style={inputStyle}
-            />
-          </Field>
-
-          <Field label="Capacity (points)">
-            <input
-              type="number"
-              value={capacity}
-              onChange={e => setCapacity(e.target.value)}
-              min={1}
-              max={200}
-              style={{ ...inputStyle, width: 100 }}
-            />
-          </Field>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 8, borderTop: '1px solid var(--border-subtle)' }}>
-            <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn--primary">
-              <Icon name="plus" size={14} />
-              Create sprint
-            </button>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sprint-capacity">Capacity (points)</Label>
+            <Input id="sprint-capacity" type="number" value={capacity} onChange={e => setCapacity(e.target.value)} min={1} max={200} className="w-24" />
           </div>
         </form>
-      </div>
-    </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" onClick={handleSubmit}>
+            <Plus className="w-3.5 h-3.5" />
+            Create sprint
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
-
-const inputStyle = {
-  width: '100%',
-  padding: '8px 12px',
-  background: 'var(--bg-input)',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  color: 'var(--fg)',
-  fontSize: 13,
-  outline: 'none',
-};
-
-const Field = ({ label, required, children }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg-muted)' }}>
-      {label}{required && <span style={{ color: 'var(--accent)', marginLeft: 2 }}>*</span>}
-    </label>
-    {children}
-  </div>
-);

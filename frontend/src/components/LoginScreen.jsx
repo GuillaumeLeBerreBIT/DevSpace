@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 
 const GitHubIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -18,80 +21,82 @@ function SignInForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h1 className="auth-title">Welcome back</h1>
-      <p className="auth-sub">Sign in to pick up where you left off.</p>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">Welcome back</h1>
+        <p className="text-sm text-muted-foreground mt-1">Sign in to pick up where you left off.</p>
+      </div>
 
-      <label className="auth-field">
-        <span className="auth-label">Username</span>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
           type="text"
-          className={`auth-input${loginError ? ' auth-input--error' : ''}`}
           placeholder="berre"
           value={username}
           onChange={e => setUsername(e.target.value)}
           autoFocus
           required
+          className={loginError ? 'border-destructive' : ''}
         />
-      </label>
+      </div>
 
-      <label className="auth-field">
-        <span className="auth-label">Password</span>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
           type="password"
-          className={`auth-input${loginError ? ' auth-input--error' : ''}`}
           placeholder="••••••••"
           value={password}
           onChange={e => setPassword(e.target.value)}
           required
+          className={loginError ? 'border-destructive' : ''}
         />
-      </label>
+      </div>
 
       {loginError && (
-        <p className="auth-error">{loginError}</p>
+        <p className="text-xs text-destructive">{loginError}</p>
       )}
 
-      <button
-        type="submit"
-        className="btn btn--primary auth-submit"
-        disabled={isLoggingIn}
-      >
+      <Button type="submit" className="w-full" disabled={isLoggingIn}>
         {isLoggingIn ? 'Signing in…' : 'Sign in'}
-      </button>
+      </Button>
 
-      <div className="auth-divider">or</div>
+      <div className="relative flex items-center gap-3 py-1">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted-foreground">or</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
 
-      <button type="button" className="btn auth-sso" disabled>
+      <Button type="button" variant="outline" className="w-full gap-2" disabled>
         <GitHubIcon />
         Continue with GitHub
-      </button>
+      </Button>
 
-      <div className="auth-foot">
+      <p className="text-xs text-center text-muted-foreground">
         New to DevSpace?{' '}
-        <button type="button" className="auth-link" disabled style={{ opacity: 0.4 }}>
+        <button type="button" className="text-primary hover:underline disabled:opacity-40" disabled>
           Create an account
         </button>
-      </div>
+      </p>
     </form>
   );
 }
 
 function RegisterForm({ onSwitchToSignIn }) {
   return (
-    <div>
-      <h1 className="auth-title">Create your workspace</h1>
-      <p className="auth-sub">One person, one tool. No team setup needed.</p>
-
-      <div className="auth-notice">
-        <span className="auth-notice__icon">🔒</span>
-        <span>
-          Registration is not available in this version.
-          Accounts are created by the server admin.
-        </span>
-        <button className="auth-link" onClick={onSwitchToSignIn}>
-          Back to sign in
-        </button>
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">Create your workspace</h1>
+        <p className="text-sm text-muted-foreground mt-1">One person, one tool. No team setup needed.</p>
       </div>
+      <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card text-sm text-muted-foreground">
+        <span>🔒</span>
+        <span>Registration is not available in this version. Accounts are created by the server admin.</span>
+      </div>
+      <button className="text-xs text-primary hover:underline text-left" onClick={onSwitchToSignIn}>
+        Back to sign in
+      </button>
     </div>
   );
 }
@@ -100,38 +105,40 @@ export function LoginScreen() {
   const [tab, setTab] = useState('signin');
 
   return (
-    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: 'var(--bg-canvas)' }}>
-      <div className="auth-shell">
-
-        <div className="auth-brand">
-          <div className="auth-brand__logo">DS</div>
-          <div className="auth-brand__name">DevSpace</div>
-        </div>
-
-        <div className="auth-card">
-          <div className="auth-tabs" role="tablist">
-            <button
-              className={`auth-tab${tab === 'signin' ? ' auth-tab--active' : ''}`}
-              onClick={() => setTab('signin')}
-              role="tab"
-            >
-              Sign in
-            </button>
-            <button
-              className={`auth-tab${tab === 'register' ? ' auth-tab--active' : ''}`}
-              onClick={() => setTab('register')}
-              role="tab"
-            >
-              Register
-            </button>
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="w-full max-w-sm flex flex-col gap-6">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-white font-mono font-medium text-sm">
+            DS
           </div>
-
-          {tab === 'signin'
-            ? <SignInForm />
-            : <RegisterForm onSwitchToSignIn={() => setTab('signin')} />
-          }
+          <span className="font-semibold text-foreground text-lg">DevSpace</span>
         </div>
 
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="p-3 border-b border-border">
+            <div className="flex bg-background rounded-lg p-0.5 gap-0.5">
+              {['signin', 'register'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    tab === t
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t === 'signin' ? 'Sign in' : 'Register'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-6">
+            {tab === 'signin'
+              ? <SignInForm />
+              : <RegisterForm onSwitchToSignIn={() => setTab('signin')} />
+            }
+          </div>
+        </div>
       </div>
     </div>
   );

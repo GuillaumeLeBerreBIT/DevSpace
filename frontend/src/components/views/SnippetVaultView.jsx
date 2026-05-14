@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Icon } from '../Icon';
 import { LabelChip } from '../Components';
-import { DEVSPACE_DATA } from '../../data/data';
-
-const { snippets: initialSnippets } = DEVSPACE_DATA;
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { useSnippets } from '../../hooks/useSnippets';
 
 const LANG_COLORS = {
   Python: '#3572A5',
@@ -15,11 +15,16 @@ const LANG_COLORS = {
   Go: '#00ADD8',
 };
 
-export const SnippetVaultView = () => {
-  const [snippets] = useState(initialSnippets);
+export const SnippetVaultView = ({ project }) => {
+  const { data: snippets = [] } = useSnippets(project?.id);
   const [search, setSearch] = useState('');
   const [langFilter, setLangFilter] = useState('All');
-  const [activeSnippet, setActiveSnippet] = useState(snippets[0] || null);
+  const [activeSnippet, setActiveSnippet] = useState(null);
+
+  // Auto-select first snippet once data loads
+  React.useEffect(() => {
+    if (snippets.length > 0 && !activeSnippet) setActiveSnippet(snippets[0]);
+  }, [snippets]);
   const [copied, setCopied] = useState(false);
 
   const languages = ['All', ...Array.from(new Set(snippets.map(s => s.language)))];
@@ -49,13 +54,13 @@ export const SnippetVaultView = () => {
       <div style={{ width: 280, borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         {/* Search + filter */}
         <div style={{ padding: '12px 12px 10px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ position: 'relative' }}>
-            <Icon name="search" size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-dim)', pointerEvents: 'none' }} />
-            <input
+          <div className="relative">
+            <Icon name="search" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search snippets…"
-              style={{ width: '100%', padding: '6px 10px 6px 28px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--fg)', fontSize: 12, outline: 'none' }}
+              className="pl-8 h-8 text-xs"
             />
           </div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -92,11 +97,11 @@ export const SnippetVaultView = () => {
           ))}
         </div>
 
-        <div style={{ padding: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-          <button className="btn btn--ghost btn--sm" style={{ width: '100%', justifyContent: 'center' }}>
+        <div className="p-2.5 border-t border-border">
+          <Button variant="ghost" size="sm" className="w-full justify-center">
             <Icon name="plus" size={13} />
             New snippet
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -115,10 +120,10 @@ export const SnippetVaultView = () => {
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}>{activeSnippet.description}</p>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn--sm" onClick={handleCopy}>
+                <Button size="sm" onClick={handleCopy}>
                   <Icon name={copied ? 'check' : 'copy'} size={13} />
                   {copied ? 'Copied!' : 'Copy'}
-                </button>
+                </Button>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap' }}>

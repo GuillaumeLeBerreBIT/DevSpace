@@ -1,12 +1,16 @@
 import react, { useState } from 'react';
-import { DEVSPACE_DATA } from './data/data';
 import { useAuth } from './context/AuthContext';
+import { useProjects } from './hooks/useProjects';
+import { useSprints, useCreateSprint } from './hooks/useSprints';
+import { useTasks, useBacklog } from './hooks/useTasks';
 import { LoginScreen } from './components/LoginScreen';
 import { Icon } from './components/Icon';
+import { Button } from './components/ui/button';
 import { Pill, ProgressBar } from './components/Components';
 import { Dashboard } from './components/Dashboard';
 import { TaskPanel } from './components/TaskPanel';
 import { CreateSprintModal } from './components/CreateSprintModal';
+import { CreateTaskModal } from './components/CreateTaskModal';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
 import { SprintOverview } from './components/views/SprintOverview';
 import { BacklogView } from './components/views/BacklogView';
@@ -15,8 +19,6 @@ import { DocsView } from './components/views/DocsView';
 import { DevLogView } from './components/views/DevLogView';
 import { StackView } from './components/views/StackView';
 import { SnippetVaultView } from './components/views/SnippetVaultView';
-
-const { projects: initialProjects, sprints: initialSprints, tasks: initialTasks } = DEVSPACE_DATA;
 
 const formatNow = () => {
   const d = new Date();
@@ -46,9 +48,9 @@ const Rail = ({ projects, activeProjectId, onProjectSelect, onAddProject }) => (
       <Icon name="plus" size={14} />
     </button>
     <div className="rail__bottom">
-      <button className="btn btn--ghost btn--icon" title="Settings">
+      <Button variant="ghost" size="icon" title="Settings">
         <Icon name="settings" size={16} />
-      </button>
+      </Button>
     </div>
   </div>
 );
@@ -65,11 +67,10 @@ const NavItem = ({ icon, label, active, count, onClick }) => (
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-const Sidebar = ({ project, sprints, activeView, activeSprint, onViewChange, onSprintSelect, onCreateSprint, onProjectSettings }) => {
+const Sidebar = ({ project, sprints, tasks = [], activeView, activeSprint, onViewChange, onSprintSelect, onCreateSprint, onProjectSettings }) => {
   const sprintStatusDot = { active: 'var(--green)', completed: 'var(--fg-dim)', planned: 'var(--blue)' };
-  const sprintTasks = DEVSPACE_DATA.tasks.filter(t => activeSprint && t.sprint === activeSprint.id);
-  const bugCount = DEVSPACE_DATA.tasks.filter(t => t.type === 'Bug' && t.status !== 'Done').length;
-  const backlogCount = DEVSPACE_DATA.tasks.filter(t => !t.sprint || t.status === 'Backlog').length;
+  const bugCount = tasks.filter(t => t.type === 'Bug' && t.status !== 'Done').length;
+  const backlogCount = tasks.filter(t => !t.sprint || t.status === 'Backlog').length;
 
   return (
     <div className="sidebar">
@@ -77,9 +78,9 @@ const Sidebar = ({ project, sprints, activeView, activeSprint, onViewChange, onS
         <div className="sidebar__project">
           <span className="sidebar__project-dot" style={{ background: project.color }} />
           <span>{project.name}</span>
-          <button className="btn btn--ghost btn--icon btn--sm" style={{ marginLeft: 'auto', padding: 4 }} onClick={onProjectSettings}>
+          <Button variant="ghost" size="icon" style={{ marginLeft: 'auto', width: 24, height: 24 }} onClick={onProjectSettings}>
             <Icon name="settings" size={13} />
-          </button>
+          </Button>
         </div>
         <div className="sidebar__project-meta">
           <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg-faint)' }}>{project.key}</span>
@@ -199,10 +200,10 @@ const TopBar = ({ project, view, sprint, onNewTask }) => {
       <div className="topbar__right">
         <span className="topbar__date">{formatNow()}</span>
         {view !== 'dashboard' && (
-          <button className="btn btn--primary btn--sm" onClick={onNewTask}>
+          <Button size="sm" onClick={onNewTask}>
             <Icon name="plus" size={13} />
             New task
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -211,47 +212,63 @@ const TopBar = ({ project, view, sprint, onNewTask }) => {
 
 // ─── ProjectView ──────────────────────────────────────────────────────────────
 
-const ProjectView = ({ project, projects, tasks, sprints, onTaskClick }) => {
+const ProjectView = ({ project }) => {
   const [view, setView] = useState('sprint');
-  const [activeSprint, setActiveSprint] = useState(sprints.find(s => s.status === 'active') || sprints[0] || null);
   const [showCreateSprint, setShowCreateSprint] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [sprintList, setSprintList] = useState(sprints);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const { data: sprints = [] } = useSprints(project.id);
+  const [activeSprint, setActiveSprint] = useState(null);
+
+  // Once sprints load, default to active sprint (or first); user can override by clicking a sprint
+  const resolvedSprint = activeSprint ?? sprints.find(s => s.status === 'active') ?? sprints[0] ?? null;
+
+  const { data: sprintTasks = [] } = useTasks(project.id, resolvedSprint?.id);
+  const { data: backlogTasks = [] } = useBacklog(project.id);
+
+  const createSprint = useCreateSprint();
 
   const handleCreateSprint = (data) => {
-    const newSprint = {
-      id: `s-${Date.now()}`,
-      num: Math.max(...sprintList.map(s => s.num)) + 1,
-      name: data.name,
-      dateRange: data.dateRange,
-      status: 'planned',
-      goal: data.goal,
-      capacity: data.capacity,
-      velocity: 0,
-      completion: 0,
-      carryover: 0,
-    };
-    setSprintList(prev => [...prev, newSprint]);
-    setActiveSprint(newSprint);
-    setView('sprint');
+    createSprint.mutate(
+      { ...data, project: project.id },
+      {
+        onSuccess: (newSprint) => {
+          setActiveSprint(newSprint);
+          setView('sprint');
+          setShowCreateSprint(false);
+        },
+      }
+    );
   };
 
-  const nextSprintNum = sprintList.length > 0 ? Math.max(...sprintList.map(s => s.num)) + 1 : 1;
+  const nextSprintNum = sprints.length > 0 ? Math.max(...sprints.map(s => s.num)) + 1 : 1;
+
+  // All tasks combined — used by bug tracker and sidebar counts
+  const allTasks = [...sprintTasks, ...backlogTasks];
+
+  // Which sprint should a new task be assigned to? Only on the sprint board.
+  const newTaskSprintId = view === 'sprint' ? resolvedSprint?.id ?? null : null;
+  const newTaskSprintName = view === 'sprint' && resolvedSprint
+    ? `Sprint ${resolvedSprint.num} · ${resolvedSprint.name}`
+    : null;
 
   return (
     <>
       <Sidebar
         project={project}
-        sprints={sprintList}
+        sprints={sprints}
+        tasks={allTasks}
         activeView={view}
-        activeSprint={activeSprint}
+        activeSprint={resolvedSprint}
         onViewChange={setView}
         onSprintSelect={setActiveSprint}
         onCreateSprint={() => setShowCreateSprint(true)}
         onProjectSettings={() => setShowSettings(true)}
       />
       <div className="main">
-        <TopBar project={project} view={view} sprint={activeSprint} onNewTask={() => {}} />
+        <TopBar project={project} view={view} sprint={resolvedSprint} onNewTask={() => setShowCreateTask(true)} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {view === 'overview' && (
             <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
@@ -273,25 +290,40 @@ const ProjectView = ({ project, projects, tasks, sprints, onTaskClick }) => {
           )}
           {view === 'sprint' && (
             <SprintOverview
-              sprint={activeSprint}
-              tasks={tasks}
-              onTaskClick={onTaskClick}
+              sprint={resolvedSprint}
+              tasks={sprintTasks}
+              onTaskClick={setSelectedTask}
               onCreateSprint={() => setShowCreateSprint(true)}
             />
           )}
           {view === 'backlog' && (
-            <BacklogView tasks={tasks} sprints={sprintList} onTaskClick={onTaskClick} />
+            <BacklogView tasks={backlogTasks} sprints={sprints} onTaskClick={setSelectedTask} />
           )}
           {view === 'bugs' && (
-            <BugTrackerView tasks={tasks} onTaskClick={onTaskClick} />
+            <BugTrackerView tasks={allTasks} onTaskClick={setSelectedTask} />
           )}
           {view === 'docs' && <DocsView project={project} />}
-          {view === 'devlog' && <DevLogView />}
+          {view === 'devlog' && <DevLogView project={project} />}
           {view === 'stack' && <StackView />}
-          {view === 'snippets' && <SnippetVaultView />}
+          {view === 'snippets' && <SnippetVaultView project={project} />}
         </div>
       </div>
 
+      {selectedTask && (
+        <TaskPanel
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          allTasks={allTasks}
+        />
+      )}
+      {showCreateTask && (
+        <CreateTaskModal
+          projectId={project.id}
+          sprintId={newTaskSprintId}
+          sprintName={newTaskSprintName}
+          onClose={() => setShowCreateTask(false)}
+        />
+      )}
       {showCreateSprint && (
         <CreateSprintModal
           nextNum={nextSprintNum}
@@ -318,30 +350,15 @@ export default function App() {
   // Auth gate — show login screen until the user has a valid token in memory
   if (!isLoggedIn) return <LoginScreen />;
 
-  const [projects] = useState(initialProjects);
-  const [tasks] = useState(initialTasks);
-  const [sprints] = useState(initialSprints);
+  const { data: projects = [] } = useProjects();
   const [activeProject, setActiveProject] = useState(null); // null = dashboard
-  const [selectedTask, setSelectedTask] = useState(null);
-
-  const handleProjectSelect = (project) => {
-    setActiveProject(project);
-  };
-
-  const handleTaskClick = (task) => {
-    setSelectedTask(task);
-  };
-
-  const handleCloseTask = () => {
-    setSelectedTask(null);
-  };
 
   return (
     <div className="app">
       <Rail
         projects={projects}
         activeProjectId={activeProject?.id}
-        onProjectSelect={handleProjectSelect}
+        onProjectSelect={setActiveProject}
         onAddProject={() => {}}
       />
 
@@ -349,27 +366,15 @@ export default function App() {
         <ProjectView
           key={activeProject.id}
           project={activeProject}
-          projects={projects}
-          tasks={tasks}
-          sprints={sprints}
-          onTaskClick={handleTaskClick}
         />
       ) : (
         <>
-          <DashboardSidebar projects={projects} onProjectSelect={handleProjectSelect} />
+          <DashboardSidebar projects={projects} onProjectSelect={setActiveProject} />
           <div className="main">
             <TopBar project={null} view="dashboard" sprint={null} onNewTask={() => {}} />
-            <Dashboard onProjectSelect={handleProjectSelect} onTaskClick={handleTaskClick} />
+            <Dashboard onProjectSelect={setActiveProject} onTaskClick={() => {}} />
           </div>
         </>
-      )}
-
-      {selectedTask && (
-        <TaskPanel
-          task={selectedTask}
-          onClose={handleCloseTask}
-          allTasks={tasks}
-        />
       )}
     </div>
   );

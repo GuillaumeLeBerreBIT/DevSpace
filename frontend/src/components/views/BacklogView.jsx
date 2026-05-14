@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Icon } from '../Icon';
+import { Input } from '../ui/input';
 import { TypePill, StatusPill, PriorityDot, PointsBadge, LabelChip, Pill, Select } from '../Components';
 
 const TYPE_FILTERS = ['All', 'Feature', 'Bug', 'Fix', 'Chore', 'Idea', 'Docs'];
@@ -57,13 +58,13 @@ export const BacklogView = ({ tasks, sprints, onTaskClick }) => {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Toolbar */}
       <div style={{ padding: '12px 28px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-          <Icon name="search" size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-dim)', pointerEvents: 'none' }} />
-          <input
+        <div className="relative flex-1 max-w-75">
+          <Icon name="search" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search tasks…"
-            style={{ width: '100%', padding: '6px 10px 6px 32px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--fg)', fontSize: 12, outline: 'none' }}
+            className="pl-8 h-8 text-xs"
           />
         </div>
 

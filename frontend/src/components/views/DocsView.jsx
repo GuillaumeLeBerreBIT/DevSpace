@@ -1,103 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon } from '../Icon';
-import { DEVSPACE_DATA } from '../../data/data';
-
-const { docPages } = DEVSPACE_DATA;
-
-const PLACEHOLDER_CONTENT = {
-  overview: {
-    title: 'Overview',
-    content: `# DevSpace Overview
-
-DevSpace is a personal project management tool built for solo developers and small indie teams. It combines sprint planning, bug tracking, docs, and a dev log in one dark-mode-first interface.
-
-## Why DevSpace?
-
-Most project management tools are optimized for big teams. DevSpace is optimized for a single developer who needs to:
-
-- Track tasks across multiple projects
-- Run lightweight sprints without ceremony
-- Keep a dev log alongside the code
-- Document decisions and architecture
-
-## Current status
-
-Version 0.4 is in active development. Sprint 12 is focused on stabilizing the Kanban DnD and cleaning up empty states.`,
-  },
-  architecture: {
-    title: 'Architecture',
-    content: `# Architecture
-
-## Frontend
-
-React 18 + TypeScript, bundled with Vite. State managed with Zustand — one slice per domain (sprint, board, project).
-
-## Backend
-
-Hono + tRPC on Fly.io. tRPC gives end-to-end type safety without a codegen step.
-
-## Database
-
-Neon Postgres (serverless). Drizzle ORM for schema + migrations.
-
-## Auth
-
-Clerk — single-tenant setup. No multi-user complexity for now.`,
-  },
-  decisions: {
-    title: 'Decision log',
-    content: `# Decision Log
-
-## 2024-04-26 · Keep markdown, skip rich-text
-
-Considered switching the editor to TipTap. Decided against — the whole point is that this is a developer tool, and markdown is the format devs already think in.
-
-## 2024-04-28 · Use react-dnd over dnd-kit
-
-Tried dnd-kit first — beautiful API, but the drop animation lagged on lists >50 items. react-dnd is older but the HTML5 backend is rock solid.
-
-## 2024-04-20 · Defer React 19 upgrade
-
-react-dnd compatibility unknown. Tracked as DS-074.`,
-  },
-  shortcuts: {
-    title: 'Keyboard shortcuts',
-    content: `# Keyboard shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| ⌘K | Command palette |
-| ⌘B | Toggle sidebar |
-| ⌘/ | Focus search |
-| ⌘N | New task |
-| Esc | Close panel / modal |
-| ⌘↵ | Save (in editors) |
-
-*Editor shortcuts*
-
-| Shortcut | Action |
-|----------|--------|
-| ⌘B | Bold |
-| ⌘I | Italic |
-| ⌘K | Insert link |`,
-  },
-};
+import { Button } from '../ui/button';
+import { useDocs, useCreateDoc, useUpdateDoc } from '../../hooks/useDocs';
 
 export const DocsView = ({ project }) => {
-  const [activePage, setActivePage] = useState('overview');
-  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving'
-  const [content, setContent] = useState(
-    Object.fromEntries(docPages.map(p => [p.id, PLACEHOLDER_CONTENT[p.id]?.content || `# ${p.title}\n\nStart writing…`]))
-  );
+  const { data: pages = [] } = useDocs(project.id);
+  const createDoc = useCreateDoc();
+  const updateDoc = useUpdateDoc();
 
-  const page = docPages.find(p => p.id === activePage);
-  const pageContent = content[activePage] || '';
+  const [activePage, setActivePage] = useState(null);
+  const [saveStatus, setSaveStatus] = useState('saved');
+
+  // Set first page as active once pages load
+  useEffect(() => {
+    if (pages.length > 0 && !activePage) {
+      setActivePage(pages[0].id);
+    }
+  }, [pages]);
+
+  const page = pages.find(p => p.id === activePage);
 
   const handleContentChange = (val) => {
-    setContent(prev => ({ ...prev, [activePage]: val }));
+    if (!page) return;
     setSaveStatus('saving');
     clearTimeout(window._docSaveTimer);
-    window._docSaveTimer = setTimeout(() => setSaveStatus('saved'), 1000);
+    // Debounce: wait 1s of inactivity before saving to avoid hammering the API
+    window._docSaveTimer = setTimeout(() => {
+      updateDoc.mutate(
+        { id: page.id, content: val },
+        { onSuccess: () => setSaveStatus('saved') }
+      );
+    }, 1000);
+  };
+
+  const handleNewPage = () => {
+    createDoc.mutate(
+      { title: 'New page', content: '# New page\n\nStart writing…', project: project.id, order: pages.length },
+      { onSuccess: (newPage) => setActivePage(newPage.id) }
+    );
   };
 
   return (
@@ -108,22 +48,22 @@ export const DocsView = ({ project }) => {
           <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--fg-faint)', fontWeight: 500 }}>Pages</span>
         </div>
         <div style={{ padding: '8px 8px', flex: 1, overflowY: 'auto' }}>
-          {docPages.map(p => (
+          {pages.map(p => (
             <button
               key={p.id}
               onClick={() => setActivePage(p.id)}
               className={`nav-item${activePage === p.id ? ' nav-item--active' : ''}`}
             >
-              <Icon name={p.icon} size={14} className="nav-item__icon" />
+              <Icon name="docs" size={14} className="nav-item__icon" />
               {p.title}
             </button>
           ))}
         </div>
         <div style={{ padding: '10px 10px', borderTop: '1px solid var(--border-subtle)' }}>
-          <button className="btn btn--ghost btn--sm" style={{ width: '100%', justifyContent: 'center' }}>
+          <Button variant="ghost" size="sm" className="w-full justify-center" onClick={handleNewPage} disabled={createDoc.isPending}>
             <Icon name="plus" size={13} />
             New page
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -147,9 +87,9 @@ export const DocsView = ({ project }) => {
                 { icon: 'link', title: 'Link' },
                 { icon: 'divider', title: 'Divider' },
               ].map(tool => (
-                <button key={tool.icon} title={tool.title} className="btn btn--ghost btn--icon btn--sm">
+                <Button key={tool.icon} title={tool.title} variant="ghost" size="icon" className="h-7 w-7">
                   <Icon name={tool.icon} size={14} />
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -157,17 +97,24 @@ export const DocsView = ({ project }) => {
 
         {/* Textarea */}
         <div style={{ flex: 1, overflow: 'hidden', padding: '24px 40px' }}>
-          <textarea
-            value={pageContent}
-            onChange={e => handleContentChange(e.target.value)}
-            style={{
-              width: '100%', height: '100%',
-              background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontSize: 13,
-              lineHeight: 1.7, resize: 'none',
-            }}
-            spellCheck={false}
-          />
+          {page ? (
+            <textarea
+              key={page.id}
+              defaultValue={page.content}
+              onChange={e => handleContentChange(e.target.value)}
+              style={{
+                width: '100%', height: '100%',
+                background: 'transparent', border: 'none', outline: 'none',
+                color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontSize: 13,
+                lineHeight: 1.7, resize: 'none',
+              }}
+              spellCheck={false}
+            />
+          ) : (
+            <div style={{ color: 'var(--fg-faint)', fontSize: 13 }}>
+              {pages.length === 0 ? 'No pages yet — create one to get started.' : 'Select a page'}
+            </div>
+          )}
         </div>
       </div>
     </div>

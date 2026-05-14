@@ -1,30 +1,16 @@
 import React, { useState } from 'react';
 import { Icon } from './Icon';
+import { Button } from './ui/button';
 import { Pill, TypePill, StatusPill, PriorityDot, ProgressBar, ProgressRing, ProjectInitial, LabelChip } from './Components';
-import { DEVSPACE_DATA } from '../data/data';
-
-const { projects, tasks, focusToday, devLog, sprints } = DEVSPACE_DATA;
-
-const activeSprint = sprints.find(s => s.status === 'active');
-const sprintTasks = tasks.filter(t => t.sprint === activeSprint?.id);
+import { useProjects } from '../hooks/useProjects';
 
 export const Dashboard = ({ onProjectSelect, onTaskClick }) => {
-  const [focusDone, setFocusDone] = useState(
-    focusToday.reduce((acc, f) => ({ ...acc, [f.taskId]: f.done }), {})
-  );
+  const { data: projects = [] } = useProjects();
 
-  const toggleFocus = (taskId) => {
-    setFocusDone(prev => ({ ...prev, [taskId]: !prev[taskId] }));
-  };
-
-  const focusItems = focusToday.map(f => {
-    const task = tasks.find(t => t.id === f.taskId);
-    const project = projects.find(p => p.id === f.projectId);
-    return { ...f, task: task || { id: f.taskId, title: f.title, type: f.type }, project };
-  });
-
-  const openBugs = tasks.filter(t => t.type === 'Bug' && t.status !== 'Done');
-  const recentLog = devLog.slice(0, 3);
+  // Cross-project bug and devlog widgets need a global API endpoint not yet built.
+  // Showing empty states until that endpoint exists.
+  const openBugs = [];
+  const recentLog = [];
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '28px', display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -37,52 +23,6 @@ export const Dashboard = ({ onProjectSelect, onTaskClick }) => {
           ))}
         </div>
       </section>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-        {/* Focus today */}
-        <section>
-          <SectionHeader title="Focus today" />
-          <div style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            {focusItems.map((f, i) => (
-              <FocusItem
-                key={f.taskId}
-                item={f}
-                done={focusDone[f.taskId]}
-                onToggle={() => toggleFocus(f.taskId)}
-                onTaskClick={onTaskClick}
-                isLast={i === focusItems.length - 1}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Active sprint */}
-        {activeSprint && (
-          <section>
-            <SectionHeader title={`Sprint ${activeSprint.num} · ${activeSprint.name}`} sub={activeSprint.dateRange} />
-            <div style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <MetricCard label="Capacity" value={`${activeSprint.capacity}pts`} />
-                <MetricCard label="Velocity" value={`${activeSprint.velocity}pts`} />
-                <MetricCard label="Completion" value={`${Math.round(activeSprint.completion * 100)}%`} accent />
-                <MetricCard label="Carryover" value={activeSprint.carryover} warn={activeSprint.carryover > 0} />
-              </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, color: 'var(--fg-dim)' }}>
-                  <span>Progress</span>
-                  <span>{Math.round(activeSprint.completion * 100)}%</span>
-                </div>
-                <ProgressBar value={activeSprint.completion} />
-              </div>
-              {activeSprint.goal && (
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-surface-3)', borderRadius: 6, border: '1px solid var(--border)' }}>
-                  {activeSprint.goal}
-                </p>
-              )}
-            </div>
-          </section>
-        )}
-      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
         {/* Open bugs */}
@@ -186,10 +126,10 @@ const SectionHeader = ({ title, sub, action }) => (
       {sub && <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{sub}</span>}
     </div>
     {action && (
-      <button className="btn btn--ghost btn--sm" style={{ fontSize: 11 }}>
+      <Button variant="ghost" size="sm" className="text-xs h-6 px-2">
         {action.icon && <Icon name={action.icon} size={12} />}
         {action.label}
-      </button>
+      </Button>
     )}
   </div>
 );

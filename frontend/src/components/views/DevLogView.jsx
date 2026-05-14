@@ -1,28 +1,27 @@
 import React, { useState } from 'react';
 import { Icon } from '../Icon';
-import { DEVSPACE_DATA } from '../../data/data';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { useDevLog, useCreateDevLogEntry } from '../../hooks/useDevLog';
 
-const { devLog: initialLog } = DEVSPACE_DATA;
-
-export const DevLogView = () => {
-  const [entries, setEntries] = useState(initialLog);
+export const DevLogView = ({ project }) => {
+  const { data: entries = [] } = useDevLog(project.id);
+  const createEntry = useCreateDevLogEntry();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState({ title: '', body: '' });
 
   const handlePost = () => {
     if (!draft.title.trim() && !draft.body.trim()) return;
-    const now = new Date();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const timestamp = `${months[now.getMonth()]} ${now.getDate()} · ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const newEntry = {
-      id: `log-${Date.now()}`,
-      timestamp,
-      title: draft.title || 'Untitled',
-      body: draft.body,
-    };
-    setEntries(prev => [newEntry, ...prev]);
-    setDraft({ title: '', body: '' });
-    setComposing(false);
+    createEntry.mutate(
+      { title: draft.title || 'Untitled', body: draft.body, project: project.id },
+      {
+        onSuccess: () => {
+          setDraft({ title: '', body: '' });
+          setComposing(false);
+        },
+      }
+    );
   };
 
   return (
@@ -31,36 +30,34 @@ export const DevLogView = () => {
         {/* Compose */}
         {composing ? (
           <div style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--accent-line)', borderRadius: 10, padding: 20, marginBottom: 28 }}>
-            <input
+            <Input
               autoFocus
               value={draft.title}
               onChange={e => setDraft(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Entry title…"
-              style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'var(--fg)', fontSize: 15, fontWeight: 500, marginBottom: 10 }}
+              className="border-0 bg-transparent px-0 text-[15px] font-medium focus-visible:ring-0 mb-2"
             />
-            <textarea
+            <Textarea
               value={draft.body}
               onChange={e => setDraft(prev => ({ ...prev, body: e.target.value }))}
               placeholder="What happened? What did you learn? What's the decision?"
               rows={6}
-              style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.7, resize: 'vertical', fontFamily: 'var(--font-mono)' }}
+              className="border-0 bg-transparent px-0 text-muted-foreground font-mono focus-visible:ring-0 resize-vertical"
             />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--border-subtle)', marginTop: 8 }}>
-              <button className="btn btn--ghost btn--sm" onClick={() => { setComposing(false); setDraft({ title: '', body: '' }); }}>
+            <div className="flex gap-2 justify-end pt-3 mt-2 border-t border-border">
+              <Button variant="ghost" size="sm" onClick={() => { setComposing(false); setDraft({ title: '', body: '' }); }}>
                 Cancel
-              </button>
-              <button className="btn btn--primary btn--sm" onClick={handlePost}>
+              </Button>
+              <Button size="sm" onClick={handlePost} disabled={createEntry.isPending}>
                 <Icon name="plus" size={13} />
-                Post entry
-              </button>
+                {createEntry.isPending ? 'Posting…' : 'Post entry'}
+              </Button>
             </div>
           </div>
         ) : (
           <button
             onClick={() => setComposing(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '12px 16px', background: 'var(--bg-surface-2)', border: '1px dashed var(--border-strong)', borderRadius: 10, marginBottom: 28, cursor: 'pointer', color: 'var(--fg-dim)', fontSize: 13, transition: 'all 0.12s ease' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-line)'; e.currentTarget.style.color = 'var(--fg-muted)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--fg-dim)'; }}
+            className="flex items-center gap-2.5 w-full px-4 py-3 bg-card border border-dashed border-border rounded-xl mb-7 text-muted-foreground text-sm cursor-pointer transition-colors hover:border-primary/50 hover:text-foreground"
           >
             <Icon name="plus" size={16} />
             Write a dev log entry…
@@ -78,6 +75,12 @@ export const DevLogView = () => {
   );
 };
 
+const formatTimestamp = (isoString) => {
+  const d = new Date(isoString);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 const LogEntry = ({ entry, isLast }) => {
   const [expanded, setExpanded] = useState(true);
 
@@ -92,7 +95,9 @@ const LogEntry = ({ entry, isLast }) => {
       {/* Content */}
       <div style={{ flex: 1, paddingBottom: isLast ? 0 : 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-faint)' }}>{entry.timestamp}</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-faint)' }}>
+            {formatTimestamp(entry.created_at)}
+          </span>
           <button
             onClick={() => setExpanded(!expanded)}
             style={{ marginLeft: 'auto', color: 'var(--fg-faint)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
