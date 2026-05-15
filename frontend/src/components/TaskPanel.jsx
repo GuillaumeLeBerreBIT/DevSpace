@@ -37,6 +37,7 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
   const [status, setStatus] = useState(task?.status);
   const [priority, setPriority] = useState(task?.priority);
   const [points, setPoints] = useState(task?.points);
+  const [acceptance, setAcceptance] = useState(task?.acceptance || []);
 
   const updateTask = useUpdateTask();
 
@@ -45,6 +46,7 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
     setStatus(task?.status);
     setPriority(task?.priority);
     setPoints(task?.points);
+    setAcceptance(task?.acceptance || []);
     setActiveTab('details');
   }, [task?.id]);
 
@@ -65,6 +67,16 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
     if (field === 'points') setPoints(Number(value));
 
     updateTask.mutate({ id: task.id, [field]: field === 'points' ? Number(value) : value });
+  };
+
+  const handleAcceptanceToggle = (index) => {
+    // Build the new acceptance array immutably so React re-renders.
+    // Then send the whole array back — acceptance is a JSONField, so we update it wholesale.
+    const next = acceptance.map((item, i) =>
+      i === index ? { ...item, done: !item.done } : item
+    );
+    setAcceptance(next);
+    updateTask.mutate({ id: task.id, acceptance: next });
   };
 
   const isSaving = updateTask.isPending;
@@ -235,17 +247,30 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
               )}
 
               {/* Acceptance criteria */}
-              {task.acceptance && task.acceptance.length > 0 && (
+              {acceptance && acceptance.length > 0 && (
                 <div>
                   <SectionLabel>Acceptance criteria</SectionLabel>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {task.acceptance.map((item, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 5, background: 'var(--bg-surface-2)', border: '1px solid var(--border)' }}>
+                    {acceptance.map((item, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleAcceptanceToggle(i)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '6px 10px', borderRadius: 5,
+                          background: 'var(--bg-surface-2)', border: '1px solid var(--border)',
+                          textAlign: 'left', cursor: 'pointer', width: '100%',
+                          transition: 'background 0.1s ease',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface-2)'}
+                      >
                         <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${item.done ? 'var(--green)' : 'var(--border-strong)'}`, background: item.done ? 'var(--green-soft)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
                           {item.done && <Icon name="check" size={10} strokeWidth={2.5} style={{ color: 'var(--green)' }} />}
                         </div>
                         <span style={{ fontSize: 13, color: item.done ? 'var(--fg-muted)' : 'var(--fg)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>

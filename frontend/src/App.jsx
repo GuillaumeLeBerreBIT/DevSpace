@@ -6,12 +6,13 @@ import { useTasks, useBacklog } from './hooks/useTasks';
 import { LoginScreen } from './components/LoginScreen';
 import { Icon } from './components/Icon';
 import { Button } from './components/ui/button';
-import { Pill, ProgressBar } from './components/Components';
+import { Pill } from './components/Components';
 import { Dashboard } from './components/Dashboard';
 import { TaskPanel } from './components/TaskPanel';
 import { CreateSprintModal } from './components/CreateSprintModal';
 import { CreateTaskModal } from './components/CreateTaskModal';
 import { ProjectSettingsModal } from './components/ProjectSettingsModal';
+import { CreateProjectModal } from './components/CreateProjectModal';
 import { SprintOverview } from './components/views/SprintOverview';
 import { BacklogView } from './components/views/BacklogView';
 import { BugTrackerView } from './components/views/BugTrackerView';
@@ -212,7 +213,7 @@ const TopBar = ({ project, view, sprint, onNewTask }) => {
 
 // ─── ProjectView ──────────────────────────────────────────────────────────────
 
-const ProjectView = ({ project }) => {
+const ProjectView = ({ project, onDeleted }) => {
   const [view, setView] = useState('sprint');
   const [showCreateSprint, setShowCreateSprint] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -280,10 +281,9 @@ const ProjectView = ({ project }) => {
                     <span key={s} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--fg-muted)' }}>{s}</span>
                   ))}
                 </div>
-                <ProgressBar value={project.progress} color={project.color} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: 'var(--fg-dim)' }}>
-                  <span>{project.openTasks} open tasks</span>
-                  <span>{Math.round(project.progress * 100)}% complete</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg-faint)' }}>{project.key}</span>
+                  <span>{project.status}</span>
                 </div>
               </div>
             </div>
@@ -304,7 +304,7 @@ const ProjectView = ({ project }) => {
           )}
           {view === 'docs' && <DocsView project={project} />}
           {view === 'devlog' && <DevLogView project={project} />}
-          {view === 'stack' && <StackView />}
+          {view === 'stack' && <StackView project={project} onOpenSettings={() => setShowSettings(true)} />}
           {view === 'snippets' && <SnippetVaultView project={project} />}
         </div>
       </div>
@@ -335,7 +335,7 @@ const ProjectView = ({ project }) => {
         <ProjectSettingsModal
           project={project}
           onClose={() => setShowSettings(false)}
-          onSave={() => setShowSettings(false)}
+          onDeleted={onDeleted}
         />
       )}
     </>
@@ -344,14 +344,12 @@ const ProjectView = ({ project }) => {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-export default function App() {
-  const { isLoggedIn } = useAuth();
-
-  // Auth gate — show login screen until the user has a valid token in memory
-  if (!isLoggedIn) return <LoginScreen />;
-
+// AuthenticatedApp only mounts after login — so useProjects() and useState
+// are never called on the login screen, avoiding a spurious 401 → reload loop.
+function AuthenticatedApp() {
   const { data: projects = [] } = useProjects();
-  const [activeProject, setActiveProject] = useState(null); // null = dashboard
+  const [activeProject, setActiveProject] = useState(null);
+  const [showCreateProject, setShowCreateProject] = useState(false);
 
   return (
     <div className="app">
@@ -359,23 +357,41 @@ export default function App() {
         projects={projects}
         activeProjectId={activeProject?.id}
         onProjectSelect={setActiveProject}
-        onAddProject={() => {}}
+        onAddProject={() => setShowCreateProject(true)}
       />
 
       {activeProject ? (
         <ProjectView
           key={activeProject.id}
           project={activeProject}
+          onDeleted={() => setActiveProject(null)}
         />
       ) : (
         <>
           <DashboardSidebar projects={projects} onProjectSelect={setActiveProject} />
           <div className="main">
             <TopBar project={null} view="dashboard" sprint={null} onNewTask={() => {}} />
-            <Dashboard onProjectSelect={setActiveProject} onTaskClick={() => {}} />
+            <Dashboard
+              onProjectSelect={setActiveProject}
+              onTaskClick={() => {}}
+              onCreateProject={() => setShowCreateProject(true)}
+            />
           </div>
         </>
       )}
+
+      {showCreateProject && (
+        <CreateProjectModal
+          onClose={() => setShowCreateProject(false)}
+          onCreated={(p) => setActiveProject(p)}
+        />
+      )}
     </div>
   );
+}
+
+export default function App() {
+  const { isLoggedIn } = useAuth();
+  if (!isLoggedIn) return <LoginScreen />;
+  return <AuthenticatedApp />;
 }

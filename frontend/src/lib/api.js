@@ -22,9 +22,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isTokenEndpoint = error.config?.url?.includes('/token/');
+    // Only force-reload on 401 from real API calls — not from the login endpoint
+    // (which legitimately returns 401 for bad credentials)
+    if (error.response?.status === 401 && !isTokenEndpoint) {
       clearToken();
-      // Reload the page — the auth gate in App.jsx will show the login screen
       window.location.reload();
     }
     return Promise.reject(error);

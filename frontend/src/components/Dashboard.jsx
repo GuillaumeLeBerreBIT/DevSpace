@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Pill, TypePill, StatusPill, PriorityDot, ProgressBar, ProgressRing, ProjectInitial, LabelChip } from './Components';
 import { useProjects } from '../hooks/useProjects';
 
-export const Dashboard = ({ onProjectSelect, onTaskClick }) => {
+export const Dashboard = ({ onProjectSelect, onTaskClick, onCreateProject }) => {
   const { data: projects = [] } = useProjects();
 
   // Cross-project bug and devlog widgets need a global API endpoint not yet built.
@@ -16,11 +16,20 @@ export const Dashboard = ({ onProjectSelect, onTaskClick }) => {
     <div style={{ flex: 1, overflowY: 'auto', padding: '28px', display: 'flex', flexDirection: 'column', gap: 28 }}>
       {/* Projects grid */}
       <section>
-        <SectionHeader title="Projects" action={{ label: 'New project', icon: 'plus' }} />
+        <SectionHeader title="Projects" action={{ label: 'New project', icon: 'plus', onClick: onCreateProject }} />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
           {projects.map(p => (
             <ProjectCard key={p.id} project={p} onClick={() => onProjectSelect(p)} />
           ))}
+          {projects.length === 0 && (
+            <div
+              onClick={onCreateProject}
+              style={{ gridColumn: '1 / -1', padding: 40, textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10, color: 'var(--fg-faint)', cursor: 'pointer' }}
+            >
+              <Icon name="plus" size={20} style={{ display: 'block', margin: '0 auto 8px' }} />
+              <div style={{ fontSize: 13 }}>Create your first project</div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -68,6 +77,17 @@ export const Dashboard = ({ onProjectSelect, onTaskClick }) => {
   );
 };
 
+const formatRelative = (iso) => {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso);
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+};
+
 const ProjectCard = ({ project, onClick }) => (
   <div
     onClick={onClick}
@@ -79,14 +99,20 @@ const ProjectCard = ({ project, onClick }) => (
       <ProjectInitial project={project} size={32} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)' }}>{project.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{project.tagline}</div>
+        <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{project.tagline || project.key}</div>
       </div>
       <Pill kind={project.status}>{project.status}</Pill>
     </div>
-    <ProgressBar value={project.progress} color={project.color} />
+    {(project.stack || []).length > 0 && (
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {project.stack.slice(0, 4).map(s => (
+          <span key={s} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'var(--bg-surface-3)', border: '1px solid var(--border)', color: 'var(--fg-faint)' }}>{s}</span>
+        ))}
+      </div>
+    )}
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--fg-dim)' }}>
-      <span>{project.openTasks} open tasks</span>
-      <span>{project.lastActivity}</span>
+      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg-faint)' }}>{project.key}</span>
+      <span>Updated {formatRelative(project.updated_at)}</span>
     </div>
   </div>
 );
@@ -126,7 +152,7 @@ const SectionHeader = ({ title, sub, action }) => (
       {sub && <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{sub}</span>}
     </div>
     {action && (
-      <Button variant="ghost" size="sm" className="text-xs h-6 px-2">
+      <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={action.onClick}>
         {action.icon && <Icon name={action.icon} size={12} />}
         {action.label}
       </Button>
