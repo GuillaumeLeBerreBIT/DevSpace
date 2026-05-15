@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import api from '../lib/api';
-import { setToken, clearToken } from '../lib/token';
+import { getToken, setToken, clearToken } from '../lib/token';
 import queryClient from '../lib/queryClient';
 
 const AuthContext = createContext(null);
@@ -8,7 +8,8 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   // isLoggedIn drives whether the app renders or the login screen renders.
   // It starts as false — every page load requires a fresh login.
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Initialize from localStorage so a page reload doesn't force re-login
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getToken());
   const [loginError, setLoginError] = useState(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -21,7 +22,9 @@ export function AuthProvider({ children }) {
       setToken(res.data.access);
       setIsLoggedIn(true);
     } catch (err) {
-      setLoginError('Invalid username or password.');
+      console.error('[login] failed:', err?.response?.status, err?.response?.data, err?.message);
+      const detail = err?.response?.data?.detail;
+      setLoginError(detail || err?.message || 'Login failed — check console for details.');
     } finally {
       setIsLoggingIn(false);
     }

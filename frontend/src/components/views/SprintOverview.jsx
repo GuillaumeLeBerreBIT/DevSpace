@@ -16,13 +16,14 @@ const SORT_OPTIONS = [
 
 const PRIORITY_RANK = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 
-export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint }) => {
+export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint, onCompleteSprint, onStartSprint, onEditSprint }) => {
   const [view, setView] = useState('board');
   const [typeFilter, setTypeFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [sortBy, setSortBy] = useState('created');
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
 
   // All hooks must run before any conditional return — Rules of Hooks.
   const sprintTasks = useMemo(
@@ -85,13 +86,70 @@ export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint }) =
               <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--fg-muted)', maxWidth: 560 }}>{sprint.goal}</p>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <Button size="sm" variant="ghost" onClick={onEditSprint} title="Edit sprint">
+              <Icon name="settings" size={13} />
+            </Button>
+            {sprint.status === 'planned' && (
+              <Button size="sm" variant="secondary" onClick={() => onStartSprint(sprint.id)}
+                style={{ background: 'var(--blue)', color: 'white', borderColor: 'transparent' }}>
+                <Icon name="arrowRight" size={13} />
+                Start sprint
+              </Button>
+            )}
+            {sprint.status !== 'completed' && sprint.status !== 'planned' && (
+              <Button
+                size="sm"
+                variant={confirmComplete ? 'default' : 'secondary'}
+                onClick={() => setConfirmComplete(c => !c)}
+                style={confirmComplete ? { background: 'var(--green)', color: 'white' } : {}}
+              >
+                <Icon name="check" size={13} />
+                Complete sprint
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={onCreateSprint}>
               <Icon name="plus" size={13} />
               New sprint
             </Button>
           </div>
         </div>
+
+        {/* Complete sprint confirmation */}
+        {confirmComplete && sprint.status !== 'completed' && (() => {
+          const openCount = sprintTasks.filter(t => t.status !== 'Done').length;
+          return (
+            <div style={{ margin: '0 0 16px', padding: 12, background: 'rgba(70, 167, 88, 0.08)', border: '1px solid var(--green)', borderRadius: 6, fontSize: 12, color: 'var(--fg)' }}>
+              <p style={{ margin: '0 0 8px' }}>
+                Mark <strong>Sprint {sprint.num}</strong> as completed?
+                {openCount > 0 && (
+                  <span style={{ color: 'var(--amber)', marginLeft: 6 }}>
+                    {openCount} task{openCount !== 1 ? 's' : ''} not done — {openCount !== 1 ? 'they' : 'it'} will carry over to the next sprint.
+                  </span>
+                )}
+              </p>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmComplete(false)}>Cancel</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => { onCompleteSprint(sprint.id); setConfirmComplete(false); }}
+                  style={{ background: 'var(--green)', color: 'white' }}
+                >
+                  Complete sprint
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Completed badge */}
+        {sprint.status === 'completed' && (
+          <div style={{ marginBottom: 12, padding: '6px 12px', background: 'rgba(70, 167, 88, 0.08)', border: '1px solid var(--green)', borderRadius: 6, fontSize: 12, color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="check" size={12} />
+            Sprint completed
+          </div>
+        )}
 
         {/* Metric cards */}
         <div style={{ display: 'flex', gap: 12 }}>

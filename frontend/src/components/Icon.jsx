@@ -49,6 +49,7 @@ const ICON_PATHS = {
   eyeOff: <><path d="M3 3l18 18" /><path d="M10.6 6.1A10.5 10.5 0 0112 6c6.5 0 10 7 10 7a17.5 17.5 0 01-3.3 4.1M6.6 6.6A17.4 17.4 0 002 13s3.5 7 10 7c1.7 0 3.2-.4 4.5-1" /><path d="M9.9 9.9a3 3 0 004.2 4.2" /></>,
   drag: <><circle cx="9" cy="6" r="1" fill="currentColor" /><circle cx="15" cy="6" r="1" fill="currentColor" /><circle cx="9" cy="12" r="1" fill="currentColor" /><circle cx="15" cy="12" r="1" fill="currentColor" /><circle cx="9" cy="18" r="1" fill="currentColor" /><circle cx="15" cy="18" r="1" fill="currentColor" /></>,
   trash: <><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /></>,
+  lock: <><rect x="5" y="11" width="14" height="11" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></>,
 };
 
 export const Icon = ({ name, size = 16, className = '', strokeWidth = 1.5 }) => {

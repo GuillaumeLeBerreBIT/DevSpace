@@ -62,6 +62,7 @@ export const SnippetVaultView = ({ project }) => {
           s.title.toLowerCase().includes(q)
           || (s.description || '').toLowerCase().includes(q)
           || (s.tags || []).some(t => t.toLowerCase().includes(q))
+          || (s.code || '').toLowerCase().includes(q)
         );
       }
       return true;

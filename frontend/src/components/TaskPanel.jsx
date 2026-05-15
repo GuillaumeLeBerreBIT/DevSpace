@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Icon } from './Icon';
 import { TypePill, LabelChip, PointsBadge, CarryoverBadge, Pill } from './Components';
 import { Button } from './ui/button';
-import { useUpdateTask } from '../hooks/useTasks';
-import { X } from 'lucide-react';
+import { useUpdateTask, useDeleteTask } from '../hooks/useTasks';
+import { X, Trash2 } from 'lucide-react';
 
 const STATUSES = ['To do', 'In progress', 'Blocked', 'In review', 'Done', 'Backlog'];
 const PRIORITIES = ['Urgent', 'High', 'Medium', 'Low'];
@@ -32,14 +32,23 @@ const formatDate = (isoString) => {
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 };
 
-export const TaskPanel = ({ task, onClose, allTasks }) => {
+export const TaskPanel = ({ task, onClose, allTasks, sprints = [] }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [status, setStatus] = useState(task?.status);
   const [priority, setPriority] = useState(task?.priority);
   const [points, setPoints] = useState(task?.points);
+  const [sprintId, setSprintId] = useState(task?.sprint ?? '__backlog__');
   const [acceptance, setAcceptance] = useState(task?.acceptance || []);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [title, setTitle] = useState(task?.title || '');
+  const [description, setDescription] = useState(task?.description || '');
+  const [editingField, setEditingField] = useState(null); // 'title' | 'description' | null
+
+  // Holds the value before editing starts so Escape can revert
+  const editSnapshot = React.useRef('');
 
   const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
 
   // Sync local state when a different task is selected
   useEffect(() => {
@@ -47,6 +56,10 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
     setPriority(task?.priority);
     setPoints(task?.points);
     setAcceptance(task?.acceptance || []);
+    setTitle(task?.title || '');
+    setDescription(task?.description || '');
+    setSprintId(task?.sprint ?? '__backlog__');
+    setEditingField(null);
     setActiveTab('details');
   }, [task?.id]);
 
@@ -77,6 +90,42 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
     );
     setAcceptance(next);
     updateTask.mutate({ id: task.id, acceptance: next });
+  };
+
+  const handleSprintChange = (val) => {
+    const newSprintId = val === '__backlog__' ? null : val;
+    setSprintId(val);
+    updateTask.mutate({ id: task.id, sprint: newSprintId });
+  };
+
+  const handleDelete = () => {
+    deleteTask.mutate(
+      { id: task.id, projectId: task.project },
+      { onSuccess: onClose }
+    );
+  };
+
+  const startEditing = (field, currentValue) => {
+    editSnapshot.current = currentValue;
+    setEditingField(field);
+  };
+
+  const commitEdit = (field, value) => {
+    const trimmed = value.trim();
+    // Only send a PATCH if the value actually changed
+    if (trimmed && trimmed !== editSnapshot.current) {
+      if (field === 'title') setTitle(trimmed);
+      if (field === 'description') setDescription(trimmed);
+      updateTask.mutate({ id: task.id, [field]: trimmed });
+    }
+    setEditingField(null);
+  };
+
+  const cancelEdit = (field) => {
+    // Revert to snapshot and exit edit mode
+    if (field === 'title') setTitle(editSnapshot.current);
+    if (field === 'description') setDescription(editSnapshot.current);
+    setEditingField(null);
   };
 
   const isSaving = updateTask.isPending;
@@ -110,11 +159,42 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
                 </span>
               )}
             </div>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.4 }}>{task.title}</h2>
+            {editingField === 'title' ? (
+              <input
+                autoFocus
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                onBlur={() => commitEdit('title', title)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitEdit('title', title); }
+                  if (e.key === 'Escape') { e.preventDefault(); cancelEdit('title'); }
+                }}
+                style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.4, background: 'var(--bg-input)', border: '1px solid var(--accent)', borderRadius: 4, padding: '2px 6px', width: '100%', outline: 'none' }}
+              />
+            ) : (
+              <h2
+                onClick={() => startEditing('title', title)}
+                title="Click to edit"
+                style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.4, cursor: 'text', borderRadius: 4, padding: '2px 6px', marginLeft: -6 }}
+              >
+                {title}
+              </h2>
+            )}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="w-4 h-4" />
-          </Button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Delete task"
+              onClick={() => setConfirmDelete(true)}
+              style={confirmDelete ? { color: 'var(--red)' } : {}}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -182,6 +262,27 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
                   />
                 </MetaField>
 
+                <MetaField label="Sprint">
+                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                      {sprintId === '__backlog__'
+                        ? 'Backlog'
+                        : sprints.find(s => s.id === sprintId)?.name || 'Backlog'}
+                    </span>
+                    <select
+                      value={sprintId}
+                      onChange={e => handleSprintChange(e.target.value)}
+                      style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+                    >
+                      <option value="__backlog__">Backlog</option>
+                      {sprints.map(s => (
+                        <option key={s.id} value={s.id}>S{s.num} · {s.name}</option>
+                      ))}
+                    </select>
+                    <Icon name="chevronDown" size={11} style={{ color: 'var(--fg-faint)', marginLeft: 4, flexShrink: 0 }} />
+                  </div>
+                </MetaField>
+
                 {task.due_date && (
                   <MetaField label="Due">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--fg-muted)' }}>
@@ -227,14 +328,33 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
               )}
 
               {/* Description */}
-              {task.description && (
-                <div>
-                  <SectionLabel>Description</SectionLabel>
-                  <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0, background: 'var(--bg-surface-2)', padding: 12, borderRadius: 6, border: '1px solid var(--border)' }}>
-                    {task.description}
-                  </p>
-                </div>
-              )}
+              <div>
+                <SectionLabel>Description</SectionLabel>
+                {editingField === 'description' ? (
+                  <textarea
+                    autoFocus
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    onBlur={() => commitEdit('description', description)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { e.preventDefault(); cancelEdit('description'); }
+                      // Ctrl/Cmd+Enter saves
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit('description', description); }
+                    }}
+                    placeholder="Add a description…"
+                    rows={5}
+                    style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6, background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--accent)', width: '100%', resize: 'vertical', outline: 'none', fontFamily: 'inherit' }}
+                  />
+                ) : (
+                  <div
+                    onClick={() => startEditing('description', description)}
+                    title="Click to edit"
+                    style={{ fontSize: 13, color: description ? 'var(--fg-muted)' : 'var(--fg-faint)', lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-surface-2)', padding: 12, borderRadius: 6, border: '1px solid var(--border)', cursor: 'text', minHeight: 44 }}
+                  >
+                    {description || 'Add a description…'}
+                  </div>
+                )}
+              </div>
 
               {/* Steps to reproduce (bugs) */}
               {task.steps && (
@@ -247,34 +367,15 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
               )}
 
               {/* Acceptance criteria */}
-              {acceptance && acceptance.length > 0 && (
-                <div>
-                  <SectionLabel>Acceptance criteria</SectionLabel>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {acceptance.map((item, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleAcceptanceToggle(i)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '6px 10px', borderRadius: 5,
-                          background: 'var(--bg-surface-2)', border: '1px solid var(--border)',
-                          textAlign: 'left', cursor: 'pointer', width: '100%',
-                          transition: 'background 0.1s ease',
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface-2)'}
-                      >
-                        <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${item.done ? 'var(--green)' : 'var(--border-strong)'}`, background: item.done ? 'var(--green-soft)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                          {item.done && <Icon name="check" size={10} strokeWidth={2.5} style={{ color: 'var(--green)' }} />}
-                        </div>
-                        <span style={{ fontSize: 13, color: item.done ? 'var(--fg-muted)' : 'var(--fg)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <AcceptanceCriteria
+                acceptance={acceptance}
+                onToggle={handleAcceptanceToggle}
+                onAdd={(text) => {
+                  const next = [...acceptance, { text, done: false }];
+                  setAcceptance(next);
+                  updateTask.mutate({ id: task.id, acceptance: next });
+                }}
+              />
 
               {/* Linked tasks */}
               {linkedTasks.length > 0 && (
@@ -288,6 +389,27 @@ export const TaskPanel = ({ task, onClose, allTasks }) => {
                         <span style={{ fontSize: 13, color: 'var(--fg-muted)', flex: 1 }}>{lt.title}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Delete confirmation */}
+              {confirmDelete && (
+                <div style={{ padding: 12, background: 'rgba(229, 72, 77, 0.08)', border: '1px solid var(--red)', borderRadius: 6, fontSize: 12, color: 'var(--fg)' }}>
+                  <p style={{ margin: '0 0 8px' }}>
+                    Delete <strong>{task.id}</strong>? This cannot be undone.
+                  </p>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={deleteTask.isPending}
+                      style={{ background: 'var(--red)', color: 'white' }}
+                    >
+                      {deleteTask.isPending ? 'Deleting…' : 'Delete forever'}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -331,6 +453,57 @@ const EditableSelect = ({ value, options, onChange, renderValue }) => (
     <Icon name="chevronDown" size={11} style={{ color: 'var(--fg-faint)', marginLeft: 4, flexShrink: 0 }} />
   </div>
 );
+
+const AcceptanceCriteria = ({ acceptance, onToggle, onAdd }) => {
+  const [draft, setDraft] = useState('');
+
+  const commit = () => {
+    const text = draft.trim();
+    if (!text) return;
+    onAdd(text);
+    setDraft('');
+  };
+
+  return (
+    <div>
+      <SectionLabel>Acceptance criteria</SectionLabel>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {acceptance.map((item, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onToggle(i)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderRadius: 5, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', textAlign: 'left', cursor: 'pointer', width: '100%' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface-2)'}
+          >
+            <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${item.done ? 'var(--green)' : 'var(--border-strong)'}`, background: item.done ? 'var(--green-soft)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              {item.done && <Icon name="check" size={10} strokeWidth={2.5} style={{ color: 'var(--green)' }} />}
+            </div>
+            <span style={{ fontSize: 13, color: item.done ? 'var(--fg-muted)' : 'var(--fg)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.text}</span>
+          </button>
+        ))}
+
+        {/* Add new criterion inline */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderRadius: 5, border: '1px dashed var(--border)' }}>
+          <div style={{ width: 16, height: 16, borderRadius: 4, border: '1.5px solid var(--border)', flexShrink: 0 }} />
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+            placeholder="Add criterion…"
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--fg)', '::placeholder': { color: 'var(--fg-faint)' } }}
+          />
+          {draft && (
+            <button onClick={commit} style={{ fontSize: 11, color: 'var(--accent)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+              Add
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MetaField = ({ label, children }) => (
   <div>

@@ -20,3 +20,13 @@ export function useCreateSprint() {
     },
   });
 }
+
+export function useUpdateSprint() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.patch(`/sprints/${id}/`, data).then(res => res.data),
+    onSuccess: (updatedSprint) => {
+      queryClient.invalidateQueries({ queryKey: ['sprints', updatedSprint.project] });
+    },
+  });
+}

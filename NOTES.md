@@ -695,3 +695,397 @@ The flow:
 5. `App` re-renders with `isLoggedIn = true` → shows the full app
 
 `queryClient.clear()` on logout wipes the entire cache so a future user can't see the previous user's data after re-login on the same machine.
+
+---
+
+## 9. Infrastructure — How DevSpace Is Built and Linked
+
+### The full system at a glance
+
+```
+Browser (React SPA)
+    │
+    │  HTTP/JSON  (axios, JWT Bearer header)
+    ▼
+Django + DRF  (port 8000)
+    │
+    │  psycopg2 / DATABASE_URL
+    ▼
+Neon (serverless Postgres)
+```
+
+Three processes in development:
+- `npm run dev` → Vite dev server on port 5173 (serves React)
+- `python manage.py runserver` → Django on port 8000 (serves API)
+- Neon → always-on cloud Postgres (no local DB process needed)
+
+In production (Render):
+- Django → Render web service (gunicorn) on `https://your-app.onrender.com`
+- React → Render static site (or Vercel) on `https://your-frontend.onrender.com`
+- Neon → same cloud Postgres, just pointed at from the production `DATABASE_URL`
+
+---
+
+### How a request travels end to end
+
+```
+1. User types in the React UI
+   ↓
+2. React component calls a TanStack mutation:
+   createTask.mutate({ title: 'Fix login', project: 'devspace', sprint: 's-1' })
+   ↓
+3. useMutation's mutationFn runs:
+   api.post('/tasks/', data)   ← api is the configured axios instance
+   ↓
+4. axios request interceptor runs:
+   Reads token from memory → appends Authorization: Bearer <jwt>
+   ↓
+5. HTTP POST → http://localhost:8000/api/tasks/
+   ↓
+6. Django middleware runs (in order):
+   SecurityMiddleware → SessionMiddleware → CorsMiddleware → ...
+   CorsMiddleware: is Origin: http://localhost:5173 in CORS_ALLOWED_ORIGINS? ✅
+   ↓
+7. JWT authentication:
+   JWTAuthentication reads Authorization header
+   Decodes token → gets user_id → fetches User from DB
+   Sets request.user = <User: berre>
+   ↓
+8. URL router matches /api/tasks/ → TaskViewSet, action = create
+   ↓
+9. IsAuthenticated permission check:
+   request.user is authenticated? ✅
+   ↓
+10. TaskViewSet.get_queryset() runs — scopes to request.user's projects
+    (create still calls this for ownership validation)
+    ↓
+11. TaskSerializer validates the POST body:
+    - title: required CharField ✅
+    - project: FK to Project, must exist and belong to this user ✅
+    - id, closed_at: read_only, silently ignored if sent
+    ↓
+12. TaskViewSet.perform_create() or perform_update() runs — injects server-side values
+    ↓
+13. Task.save() runs:
+    - First save? Auto-generates id = "DS-001"
+    - Calls super().save() → SQL INSERT
+    ↓
+14. Django returns HTTP 201 with the serialized task JSON
+    ↓
+15. axios response interceptor: 401? → clearToken + reload. Otherwise pass through.
+    ↓
+16. TanStack onSuccess fires:
+    queryClient.invalidateQueries({ queryKey: ['tasks', 'devspace'] })
+    ↓
+17. All components subscribed to ['tasks', 'devspace', *] see their data as stale
+    ↓
+18. TanStack refetches → GET /api/tasks/?project=devspace&sprint=s-1
+    ↓
+19. Components re-render with the new task in the list
+```
+
+---
+
+### Directory map — where everything lives
+
+```
+DevSpace/
+├── backend/
+│   ├── backend/               ← Django project config
+│   │   ├── settings.py        ← DB, CORS, JWT, DRF, installed apps
+│   │   └── urls.py            ← root router: /admin/, /api/me/, /api/
+│   ├── api/                   ← the main Django app
+│   │   ├── models.py          ← Project, Sprint, Task, DocPage, DevLogEntry, Snippet, EnvVariable
+│   │   ├── serializers.py     ← one ModelSerializer per model
+│   │   ├── views.py           ← one ModelViewSet per model + SearchView + DashboardView + vault views
+│   │   ├── urls.py            ← DefaultRouter + manual paths for search/dashboard/vault
+│   │   └── migrations/        ← auto-generated schema history
+│   ├── users/                 ← custom user app
+│   │   ├── models.py          ← CustomUser (extends AbstractUser, adds display_name + role)
+│   │   ├── serializers.py     ← UserProfileSerializer
+│   │   └── views.py           ← MeView (GET/PATCH /api/me/)
+│   └── manage.py
+│
+└── frontend/
+    └── src/
+        ├── main.jsx           ← mounts React, wraps in QueryClientProvider + AuthProvider
+        ├── App.jsx            ← shell: Rail, Sidebar, routing between projects/views, Cmd+K
+        ├── lib/
+        │   ├── api.js         ← axios instance + request/response interceptors
+        │   └── token.js       ← in-memory JWT storage (module-level variable)
+        ├── context/
+        │   └── AuthContext.jsx← isLoggedIn state, login(), logout()
+        ├── hooks/             ← one file per resource
+        │   ├── useProjects.js
+        │   ├── useSprints.js
+        │   ├── useTasks.js
+        │   ├── useDocs.js
+        │   ├── useDevLog.js
+        │   ├── useSnippets.js
+        │   ├── useEnvVars.js  ← env vars + vault unlock/set-password
+        │   ├── useSearch.js   ← global search with useDebounce
+        │   ├── useDashboard.js
+        │   └── useMe.js
+        ├── components/
+        │   ├── Dashboard.jsx  ← overview: sprint banners, bug list, devlog, stat strip
+        │   ├── Kanban.jsx     ← board view for active sprint
+        │   ├── TaskPanel.jsx  ← slide-in detail panel, inline editing, sprint move, delete
+        │   ├── CreateTaskModal.jsx
+        │   ├── CreateSprintModal.jsx
+        │   ├── EditSprintModal.jsx
+        │   ├── ProjectSettingsModal.jsx ← name/tagline/color/status/stack/vault timeout
+        │   ├── UserSettingsModal.jsx    ← display_name + role
+        │   ├── SearchModal.jsx          ← Cmd+K global search, keyboard nav
+        │   ├── Icon.jsx                 ← all SVG icons as a lookup table
+        │   └── views/                   ← one component per sidebar view
+        │       ├── SprintOverview.jsx
+        │       ├── BacklogView.jsx
+        │       ├── BugTrackerView.jsx
+        │       ├── DocsView.jsx
+        │       ├── DevLogView.jsx
+        │       ├── SnippetVaultView.jsx
+        │       └── StackView.jsx        ← tech stack + env var vault
+        └── index.css          ← design system: CSS variables, tokens, global styles
+```
+
+---
+
+### How Django models relate to each other
+
+```
+CustomUser (auth)
+    │
+    │ owner (CASCADE)
+    ▼
+Project ──────────────────────────────────────────┐
+    │                                             │
+    │ project (CASCADE)    project (CASCADE)      │ project (SET_NULL, nullable)
+    ▼                      ▼                      ▼
+Sprint              DocPage               Snippet (global or scoped)
+    │               DevLogEntry
+    │ sprint (SET_NULL, nullable)
+    ▼
+Task
+
+Project
+    │ project (CASCADE)
+    ▼
+EnvVariable
+```
+
+Key rules:
+- Delete a **Project** → cascades to all Sprints, Tasks, DocPages, DevLogEntries, EnvVariables
+- Delete a **Sprint** → Tasks become backlog (sprint = NULL), not deleted
+- Delete a **User** → cascades to all their Projects (and transitively everything else)
+- **Snippet** can exist without a project (global snippet) — FK is nullable
+
+---
+
+### How authentication works
+
+```
+Login:
+  POST /api/token/  { username, password }
+  → DRF SimpleJWT verifies credentials
+  → Returns { access: "eyJ...", refresh: "eyJ..." }
+  → Frontend stores access token in memory (token.js module variable)
+  → Frontend ignores refresh token (user re-logs on page refresh — acceptable for solo tool)
+
+Every API request:
+  axios interceptor reads getToken() → appends Authorization: Bearer <token>
+
+Token expiry:
+  Response interceptor watches for 401
+  If 401 from non-token endpoint → clearToken() + window.location.reload()
+  If 401 from /token/ endpoint itself → let it through (login error, not session expiry)
+
+Logout:
+  clearToken() → queryClient.clear() → setIsLoggedIn(false)
+```
+
+---
+
+### How TanStack Query connects components to the API
+
+The `QueryClientProvider` in `main.jsx` creates a global cache shared by all components. Hooks read from and write to this cache. Components never call axios directly.
+
+```
+main.jsx
+└── QueryClientProvider (global cache)
+    └── AuthProvider
+        └── App.jsx
+            ├── Rail (logo/nav)
+            ├── Sidebar (project list)
+            └── ProjectView
+                ├── SprintOverview  → useSprints(projectId)   ──► GET /api/sprints/
+                ├── BacklogView     → useBacklog(projectId)    ──► GET /api/tasks/?sprint=null
+                ├── TaskPanel       → useUpdateTask()           ──► PATCH /api/tasks/:id/
+                ├── DevLogView      → useDevLog(projectId)      ──► GET /api/devlog/
+                ├── StackView       → useEnvVars(projectId)     ──► GET /api/env-vars/
+                └── ...
+```
+
+The `key` prop on `<ProjectView key={activeProject.id}>` causes a full remount when you switch projects — resetting all local state and re-running all hooks with the new `projectId`.
+
+---
+
+### The vault security model
+
+```
+Set password:
+  User types password → POST /api/projects/:id/set-vault-password/
+  Django: SHA-256 hash → stored in project.vault_password_hash
+  API response: ProjectSerializer NEVER sends vault_password_hash
+  Instead exposes: has_vault_password: bool (SerializerMethodField)
+
+Unlock:
+  User enters password → POST /api/projects/:id/unlock-vault/
+  Django: SHA-256(input) == stored hash? → { success: true, timeout: 15 }
+  Frontend: stores unlockedUntil = Date.now() + timeout * 60_000 in React state (memory only)
+  setTimeout auto-clears unlockedUntil after timeout
+
+Values visible:
+  Only while unlockedUntil > Date.now()
+  Page refresh = locked (state is gone)
+  Tab close = locked
+  Never written to localStorage
+```
+
+SHA-256 is used (not bcrypt) because this is a personal single-user tool. For a multi-user product you'd upgrade to bcrypt/argon2 with a salt.
+
+---
+
+## 10. Planned Features — Architecture Notes
+
+### 10.1 Teams / Multi-user
+
+**What changes:** Currently every viewset filters by `project__owner=request.user`. With teams, access is via a membership table.
+
+```python
+# New model
+class Membership(models.Model):
+    ROLE_CHOICES = [('owner', 'Owner'), ('editor', 'Editor'), ('viewer', 'Viewer')]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='memberships')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'project')]
+```
+
+**What every viewset changes to:**
+```python
+# Before (single user)
+def get_queryset(self):
+    return Sprint.objects.filter(project__owner=self.request.user)
+
+# After (teams)
+def get_queryset(self):
+    accessible_projects = Project.objects.filter(memberships__user=self.request.user)
+    return Sprint.objects.filter(project__in=accessible_projects)
+```
+
+**Invite flow:** Generate a UUID invite token, store on Membership with `accepted=False`. Send an email with a link. When clicked, set `accepted=True` and assign the user.
+
+**Why build this first:** The queryset change touches every viewset. Building AI or GitHub integration before teams means you'd have to retrofit multi-user scoping onto those too.
+
+---
+
+### 10.2 GitHub Integration
+
+**New field on Project:**
+```python
+github_repo = models.CharField(max_length=300, blank=True)  # e.g. "guillaumeleberre/devspace"
+```
+
+**New field on CustomUser:**
+```python
+github_token = models.CharField(max_length=200, blank=True)  # personal access token, store encrypted
+```
+
+**GitHub API calls from Django:**
+```python
+import requests
+
+def get_repo_files(repo, token):
+    headers = {'Authorization': f'token {token}', 'Accept': 'application/vnd.github.v3+json'}
+    url = f'https://api.github.com/repos/{repo}/git/trees/HEAD?recursive=1'
+    return requests.get(url, headers=headers).json()
+```
+
+**What you can surface:**
+- File tree on the Stack page
+- Open PRs alongside tasks
+- Recent commits in the dev log
+- Code files as context for the AI agent
+
+**Start simple:** One field (`github_repo`), one endpoint (`GET /api/projects/:id/github-summary/`), display in Stack view. Add OAuth later when the basics work.
+
+---
+
+### 10.3 AI Agent (Claude API)
+
+**Setup:**
+```bash
+pip install anthropic
+```
+
+**Backend endpoint:**
+```python
+# views.py
+import anthropic
+
+class ProjectChatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, pk=project_id, owner=request.user)
+        user_message = request.data.get('message', '')
+
+        # Build context from project data
+        tasks = Task.objects.filter(project=project, status='In progress').values('id', 'title', 'type', 'priority')
+        devlog = DevLogEntry.objects.filter(project=project).order_by('-created_at')[:5].values('title', 'body')
+
+        context = f"""
+Project: {project.name}
+Status: {project.status}
+Stack: {', '.join(project.stack)}
+
+Active tasks:
+{chr(10).join(f"- [{t['id']}] {t['title']} ({t['priority']})" for t in tasks)}
+
+Recent dev log:
+{chr(10).join(f"- {e['title']}: {e['body'][:200]}" for e in devlog)}
+"""
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model='claude-sonnet-4-6',
+            max_tokens=1024,
+            system=f"You are a helpful assistant for the project '{project.name}'. Use the project context to give specific, actionable answers.\n\n{context}",
+            messages=[{'role': 'user', 'content': user_message}]
+        )
+
+        return Response({'reply': message.content[0].text})
+```
+
+**Add to settings.py:**
+```python
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+```
+
+**Frontend hook:**
+```js
+export function useProjectChat(projectId) {
+  return useMutation({
+    mutationFn: ({ message }) =>
+      api.post(`/projects/${projectId}/chat/`, { message }).then(res => res.data),
+  });
+}
+```
+
+**Why Claude Sonnet 4.6:**
+- Fast enough for interactive chat (2–5s response)
+- Handles long context windows well (important for full project context)
+- ~$0.01–0.05 per call at typical project context sizes
+- You're already in the Claude Code environment — same API, same billing account

@@ -20,6 +20,7 @@ export const ProjectSettingsModal = ({ project, onClose, onDeleted }) => {
   const [color, setColor] = useState(project.color);
   const [status, setStatus] = useState(project.status || 'Active');
   const [stack, setStack] = useState((project.stack || []).join(', '));
+  const [vaultTimeout, setVaultTimeout] = useState(project.vault_timeout ?? 15);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const updateProject = useUpdateProject();
@@ -35,6 +36,7 @@ export const ProjectSettingsModal = ({ project, onClose, onDeleted }) => {
         color,
         status,
         stack: stack.split(',').map(s => s.trim()).filter(Boolean),
+        vault_timeout: Number(vaultTimeout) || 15,
       },
       { onSuccess: onClose }
     );
@@ -86,6 +88,22 @@ export const ProjectSettingsModal = ({ project, onClose, onDeleted }) => {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="proj-stack">Stack (comma-separated)</Label>
             <Input id="proj-stack" value={stack} onChange={e => setStack(e.target.value)} placeholder="React, TypeScript, Postgres" />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="vault-timeout">
+              Vault auto-lock timeout
+              <span style={{ fontWeight: 400, color: 'var(--fg-faint)', marginLeft: 6, fontSize: 11 }}>minutes of inactivity</span>
+            </Label>
+            <Input
+              id="vault-timeout"
+              type="number"
+              min={1}
+              max={480}
+              value={vaultTimeout}
+              onChange={e => setVaultTimeout(e.target.value)}
+              style={{ width: 80 }}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -3,11 +3,12 @@ import { Icon } from '../Icon';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { useDevLog, useCreateDevLogEntry } from '../../hooks/useDevLog';
+import { useDevLog, useCreateDevLogEntry, useDeleteDevLogEntry } from '../../hooks/useDevLog';
 
 export const DevLogView = ({ project }) => {
   const { data: entries = [] } = useDevLog(project.id);
   const createEntry = useCreateDevLogEntry();
+  const deleteEntry = useDeleteDevLogEntry();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState({ title: '', body: '' });
 
@@ -67,7 +68,12 @@ export const DevLogView = ({ project }) => {
         {/* Entries */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {entries.map((entry, i) => (
-            <LogEntry key={entry.id} entry={entry} isLast={i === entries.length - 1} />
+            <LogEntry
+              key={entry.id}
+              entry={entry}
+              isLast={i === entries.length - 1}
+              onDelete={() => deleteEntry.mutate({ id: entry.id, projectId: project.id })}
+            />
           ))}
         </div>
       </div>
@@ -81,11 +87,12 @@ const formatTimestamp = (isoString) => {
   return `${months[d.getMonth()]} ${d.getDate()} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-const LogEntry = ({ entry, isLast }) => {
+const LogEntry = ({ entry, isLast, onDelete }) => {
   const [expanded, setExpanded] = useState(true);
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
+    <div style={{ display: 'flex', gap: 16 }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       {/* Timeline */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 24, flexShrink: 0 }}>
         <div style={{ width: 8, height: 8, borderRadius: 50, background: 'var(--accent)', border: '2px solid var(--bg-canvas)', marginTop: 18, flexShrink: 0 }} />
@@ -98,6 +105,17 @@ const LogEntry = ({ entry, isLast }) => {
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-faint)' }}>
             {formatTimestamp(entry.created_at)}
           </span>
+          {hovered && (
+            <button
+              onClick={onDelete}
+              title="Delete entry"
+              style={{ color: 'var(--fg-faint)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--fg-faint)'}
+            >
+              <Icon name="x" size={13} />
+            </button>
+          )}
           <button
             onClick={() => setExpanded(!expanded)}
             style={{ marginLeft: 'auto', color: 'var(--fg-faint)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}

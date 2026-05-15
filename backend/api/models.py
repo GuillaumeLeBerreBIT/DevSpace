@@ -25,6 +25,8 @@ class Project(models.Model):
     tagline = models.CharField(max_length=300, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     stack = models.JSONField(default=list)               # e.g. ["React", "Django", "Postgres"]
+    vault_password_hash = models.CharField(max_length=255, blank=True)
+    vault_timeout = models.IntegerField(default=15)      # minutes before vault re-locks
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -41,6 +43,19 @@ class Project(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class EnvVariable(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='env_vars')
+    key = models.CharField(max_length=200)
+    value = models.CharField(max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['key']
+
+    def __str__(self):
+        return f"{self.project.key} / {self.key}"
 
 
 class Sprint(models.Model):

@@ -40,3 +40,14 @@ export function useUpdateTask() {
     },
   });
 }
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    // DELETE returns 204 No Content, so we pass projectId separately for cache invalidation
+    mutationFn: ({ id }) => api.delete(`/tasks/${id}/`),
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+}

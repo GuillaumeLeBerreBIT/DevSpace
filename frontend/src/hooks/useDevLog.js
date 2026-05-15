@@ -18,3 +18,13 @@ export function useCreateDevLogEntry() {
     },
   });
 }
+
+export function useDeleteDevLogEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }) => api.delete(`/devlog/${id}/`),
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['devlog', projectId] });
+    },
+  });
+}

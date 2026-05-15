@@ -159,11 +159,10 @@ SIMPLE_JWT = {
 
 
 # --- CORS --------------------------------------------------------------------
-# CORS_ALLOWED_ORIGINS: explicit allowlist of origins that can call this API.
-# Loaded from .env so you can add the production URL later without touching code.
-# The React dev server runs on port 5173 by default.
+# In development, allow any localhost port so Vite port changes (5173, 5174…)
+# never break the login flow. In production, set CORS_ALLOWED_ORIGINS in .env.
 
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173',
-).split(',')
+if DEBUG:
+    CORS_ALLOWED_ORIGIN_REGEXES = [r'^http://localhost:\d+$']
+else:
+    CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')

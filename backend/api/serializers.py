@@ -1,18 +1,27 @@
 from rest_framework import serializers
-from .models import Project, Sprint, Task, DocPage, DevLogEntry, Snippet
+from .models import Project, Sprint, Task, DocPage, DevLogEntry, Snippet, EnvVariable
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    # Expose a boolean so the frontend knows if vault is password-protected,
+    # without ever sending the actual hash over the wire.
+    has_vault_password = serializers.SerializerMethodField()
+
+    def get_has_vault_password(self, obj):
+        return bool(obj.vault_password_hash)
+
     class Meta:
         model = Project
-        # '__all__' exposes every field on the model.
-        # We'll override specific fields below where needed.
-        fields = '__all__'
-        # created_at and updated_at are set by the DB — the frontend should
-        # never be able to send these values, so we mark them read-only.
-        # id is auto-generated in Project.save() from the name field — frontend never sends it
-        # owner is set server-side from request.user in perform_create — never from the frontend
+        # Exclude the raw hash; expose has_vault_password + vault_timeout instead
+        exclude = ['vault_password_hash']
         read_only_fields = ['id', 'owner', 'created_at', 'updated_at']
+
+
+class EnvVariableSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EnvVariable
+        fields = '__all__'
+        read_only_fields = ['created_at']
 
 
 class SprintSerializer(serializers.ModelSerializer):

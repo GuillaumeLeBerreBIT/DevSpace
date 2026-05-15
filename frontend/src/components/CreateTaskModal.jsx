@@ -27,6 +27,7 @@ export const CreateTaskModal = ({ projectId, sprintId, sprintName, onClose }) =>
   const [status, setStatus] = useState(sprintId ? 'To do' : 'Backlog');
   const [priority, setPriority] = useState('Medium');
   const [points, setPoints] = useState(3);
+  const [dueDate, setDueDate] = useState('');
 
   const createTask = useCreateTask();
 
@@ -43,6 +44,7 @@ export const CreateTaskModal = ({ projectId, sprintId, sprintName, onClose }) =>
         points: Number(points),
         project: projectId,
         sprint: sprintId ?? null,
+        due_date: dueDate || null,
       },
       { onSuccess: onClose }
     );
@@ -128,6 +130,18 @@ export const CreateTaskModal = ({ projectId, sprintId, sprintName, onClose }) =>
                   {POINTS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
+            </div>
+
+            {/* Due date */}
+            <div style={fieldStyle}>
+              <Label htmlFor="task-due">Due date <span style={{ color: 'var(--fg-faint)', fontWeight: 400 }}>(optional)</span></Label>
+              <input
+                id="task-due"
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                style={{ ...selectStyle, colorScheme: 'dark' }}
+              />
             </div>
 
             {/* Footer */}
