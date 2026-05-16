@@ -16,11 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from users.views import MeView
+
+
+def healthz(request):
+    return JsonResponse({'status': 'ok'})
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('healthz/', healthz),
     path('api/me/', MeView.as_view()),
-    # All API routes live under /api/ — the api app's urls.py handles the rest
     path('api/', include('api.urls')),
 ]
