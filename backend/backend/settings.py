@@ -5,12 +5,13 @@ from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
 
+from urllib.parse import urlparse, parse_qsl
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env from the backend/ directory (one level above this file)
-load_dotenv(BASE_DIR / '.env')
-
+load_dotenv(BASE_DIR / '.env.backend')
 
 # --- Core settings -----------------------------------------------------------
 
@@ -21,6 +22,11 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-only-change-in-pr
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# Render injects RENDER_EXTERNAL_HOSTNAME automatically — add it if present
+_render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
 
 
 # --- Installed apps ----------------------------------------------------------
@@ -82,11 +88,31 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # the dict Django expects (ENGINE, NAME, USER, PASSWORD, HOST, PORT).
 # The fallback keeps SQLite working if you run without a .env (e.g. in CI).
 
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+#         conn_max_age=600,       # reuse DB connections for up to 10 min (important for serverless Neon)
+#     )
+# }
+
+# Replace the DATABASES section of your settings.py with this
+tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+
+# parse_qsl splits the query string into key/value pairs.
+# channel_binding is a Neon-specific hint not supported by psycopg2 — strip it
+# or it will cause password auth failures during the SSL handshake.
+_db_options = {k: v for k, v in parse_qsl(tmpPostgres.query) if k != 'channel_binding'}
+
 DATABASES = {
-    'default': dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,       # reuse DB connections for up to 10 min (important for serverless Neon)
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': tmpPostgres.path.replace('/', ''),
+        'USER': tmpPostgres.username,
+        'PASSWORD': tmpPostgres.password,
+        'HOST': tmpPostgres.hostname,
+        'PORT': 5432,
+        'OPTIONS': _db_options,
+    }
 }
 
 
