@@ -15,11 +15,15 @@ load_dotenv(BASE_DIR / '.env.backend')
 
 # --- Core settings -----------------------------------------------------------
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-only-change-in-production')
+# In production RENDER_EXTERNAL_HOSTNAME is always set — use that to detect the environment.
+# Locally it's absent, so DEBUG defaults to True and the insecure key is fine.
+_in_production = bool(os.environ.get('RENDER_EXTERNAL_HOSTNAME'))
 
-# Cast to bool: the string "True" from .env is truthy, but so is any non-empty
-# string — so we compare explicitly rather than relying on truthiness.
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = not _in_production
+
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-only-change-in-production')
+if _in_production and SECRET_KEY.startswith('django-insecure'):
+    raise RuntimeError('SECRET_KEY must be set to a real value in production.')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
