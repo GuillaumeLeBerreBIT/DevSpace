@@ -11,6 +11,12 @@ from .crypto import encrypt, decrypt
 from .github_client import GithubClient, GithubError
 from .agent.graph import run_agent
 from .agent.tools import apply_mutation
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .throttles import AgentMessageThrottle, LoginThrottle
+
+
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    throttle_classes = [LoginThrottle]
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -409,6 +415,12 @@ class MessagesView(APIView):
                                               calls LLM, saves + returns assistant reply
     """
     permission_classes = [IsAuthenticated]
+
+    def get_throttles(self):
+        # Only throttle writes — reading message history is free
+        if self.request.method == 'POST':
+            return [AgentMessageThrottle()]
+        return []
 
     def _get_conversation(self, request, conv_id: int) -> Conversation:
         # Scoped via project owner — 404 if not theirs

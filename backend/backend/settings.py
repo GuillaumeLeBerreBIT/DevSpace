@@ -173,6 +173,23 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'user': os.environ.get('THROTTLE_USER', '2000/day'),
+        'agent_message': os.environ.get('THROTTLE_AGENT_MESSAGE', '20/minute'),
+        'login': os.environ.get('THROTTLE_LOGIN', '5/minute'),
+    },
+}
+
+# Cache backend for DRF throttling.
+# LocMemCache is in-process memory — fast, zero dependencies, resets on redeploy.
+# Fine for a single Render instance; swap for Redis if you ever go multi-process.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
 }
 
 

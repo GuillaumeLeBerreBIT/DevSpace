@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
 router = DefaultRouter()
@@ -30,6 +30,6 @@ urlpatterns = [
     path('conversations/<int:conv_id>/messages/<int:msg_id>/discard/', views.DiscardMutationsView.as_view(), name='discard-mutations'),
     # JWT endpoints — POST /api/token/ returns access + refresh tokens
     # POST /api/token/refresh/ takes a refresh token and returns a new access token
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/', views.ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
