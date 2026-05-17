@@ -4,6 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { useMe, useUpdateMe } from '../hooks/useMe';
+import { useGithubAccount, useConnectGithub, useDisconnectGithub } from '../hooks/useGithub';
 import { useAuth } from '../context/AuthContext';
 
 export const UserSettingsModal = ({ onClose }) => {
@@ -11,8 +12,14 @@ export const UserSettingsModal = ({ onClose }) => {
   const updateMe = useUpdateMe();
   const { logout } = useAuth();
 
+  const { data: github } = useGithubAccount();
+  const connectGithub = useConnectGithub();
+  const disconnectGithub = useDisconnectGithub();
+
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('');
+  const [ghToken, setGhToken] = useState('');
+  const [ghError, setGhError] = useState('');
 
   // Populate fields once user data loads
   useEffect(() => {
@@ -28,6 +35,17 @@ export const UserSettingsModal = ({ onClose }) => {
       { display_name: displayName, role },
       { onSuccess: onClose }
     );
+  };
+
+  const handleConnectGithub = (e) => {
+    e.preventDefault();
+    setGhError('');
+    const token = ghToken.trim();
+    if (!token) return;
+    connectGithub.mutate(token, {
+      onSuccess: () => setGhToken(''),
+      onError: (err) => setGhError(err.response?.data?.detail || 'Could not connect.'),
+    });
   };
 
   return (
@@ -60,6 +78,50 @@ export const UserSettingsModal = ({ onClose }) => {
             />
           </div>
         </form>
+
+        {/* ── GitHub connection ─────────────────────────────────────────── */}
+        <div style={{ padding: '0 24px 16px', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+          <Label>GitHub</Label>
+          {github?.connected ? (
+            <div className="flex flex-col gap-2" style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 13, color: 'var(--fg)' }}>
+                Connected as <strong>{github.github_username}</strong>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => disconnectGithub.mutate()}
+                disabled={disconnectGithub.isPending}
+                style={{ alignSelf: 'flex-start', color: 'var(--fg-faint)' }}
+              >
+                {disconnectGithub.isPending ? 'Disconnecting…' : 'Disconnect'}
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleConnectGithub} className="flex flex-col gap-2" style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-faint)', lineHeight: 1.5 }}>
+                Paste a GitHub Personal Access Token with <code>repo</code> scope.{' '}
+                <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>
+                  Generate one →
+                </a>
+              </div>
+              <Input
+                type="password"
+                value={ghToken}
+                onChange={e => setGhToken(e.target.value)}
+                placeholder="ghp_..."
+                autoComplete="off"
+              />
+              {ghError && (
+                <div style={{ fontSize: 11, color: 'var(--red)' }}>{ghError}</div>
+              )}
+              <Button type="submit" size="sm" disabled={!ghToken.trim() || connectGithub.isPending} style={{ alignSelf: 'flex-start' }}>
+                {connectGithub.isPending ? 'Validating…' : 'Connect GitHub'}
+              </Button>
+            </form>
+          )}
+        </div>
 
         <DialogFooter className="justify-between">
           <Button

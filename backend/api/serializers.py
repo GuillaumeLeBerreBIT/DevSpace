@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, Sprint, Task, DocPage, DevLogEntry, Snippet, EnvVariable
+from .models import Project, Sprint, Task, DocPage, DevLogEntry, Snippet, EnvVariable, GithubAccount, Conversation, Message
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -61,3 +61,30 @@ class SnippetSerializer(serializers.ModelSerializer):
         model = Snippet
         fields = '__all__'
         read_only_fields = ['created_at']
+
+
+class GithubAccountSerializer(serializers.ModelSerializer):
+    """Public view of a user's GitHub connection. The token is NEVER serialized."""
+
+    class Meta:
+        model = GithubAccount
+        # Note: encrypted_token is deliberately excluded — never expose it.
+        fields = ['github_username', 'connected_at', 'last_validated_at']
+        read_only_fields = fields
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = ['id', 'role', 'content', 'tool_calls', 'pending_mutations', 'applied_at', 'created_at']
+        read_only_fields = fields
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    # message_count is convenient for the sidebar without loading full message bodies
+    message_count = serializers.IntegerField(source='messages.count', read_only=True)
+
+    class Meta:
+        model = Conversation
+        fields = ['id', 'project', 'title', 'message_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'message_count', 'created_at', 'updated_at']

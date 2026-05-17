@@ -27,6 +27,9 @@ class Project(models.Model):
     stack = models.JSONField(default=list)               # e.g. ["React", "Django", "Postgres"]
     vault_password_hash = models.CharField(max_length=255, blank=True)
     vault_timeout = models.IntegerField(default=15)      # minutes before vault re-locks
+    # GitHub repo this project is linked to, e.g. "owner/repo". Empty = not linked.
+    # The user-level GithubAccount holds the actual token.
+    github_repo = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -147,10 +150,22 @@ class Task(models.Model):
 
     def save(self, *args, **kwargs):
         # Auto-generate the string ID on first save only.
-        # Count existing tasks for this project to determine the next number.
+        # Use max(existing num)+1 then loop in case of races/deletions —
+        # count()+1 is unreliable because any prior deletion creates collisions.
         if not self.pk:
-            count = Task.objects.filter(project=self.project).count()
-            self.pk = f"{self.project.key}-{str(count + 1).zfill(3)}"
+            existing = Task.objects.filter(
+                project=self.project, id__startswith=f"{self.project.key}-"
+            ).values_list('id', flat=True)
+            highest = 0
+            for tid in existing:
+                try:
+                    highest = max(highest, int(tid.rsplit('-', 1)[-1]))
+                except (ValueError, IndexError):
+                    continue
+            n = highest + 1
+            while Task.objects.filter(pk=f"{self.project.key}-{str(n).zfill(3)}").exists():
+                n += 1
+            self.pk = f"{self.project.key}-{str(n).zfill(3)}"
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -222,3 +237,64 @@ class Snippet(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Conversation(models.Model):
+    """A chat session within a project. A project can have many conversations,
+    like ChatGPT chats — create, rename, delete independently."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='conversations')
+    title = models.CharField(max_length=200, default='New chat')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.project.key} — {self.title}"
+
+
+class Message(models.Model):
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('assistant', 'Assistant'),
+        ('tool', 'Tool'),   # reserved for Phase 3 when the agent uses tools
+    ]
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    content = models.TextField()
+    # Tools the agent already called (read tools that ran live)
+    tool_calls = models.JSONField(default=list, blank=True)
+    # Write tools the agent wants to call but is waiting for user confirmation.
+    # Shape: [{"tool": "create_task", "args": {...}, "preview": "..."}, ...]
+    # Cleared (set to []) once the user applies or discards.
+    pending_mutations = models.JSONField(default=list, blank=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:40]}"
+
+
+class GithubAccount(models.Model):
+    """One per user. Holds the user's encrypted GitHub PAT.
+
+    The token is encrypted at rest with Fernet (see api/crypto.py).
+    `github_username` is cached after the first successful API call so we can
+    display it in the UI without re-hitting the GitHub API.
+    """
+    owner = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='github_account',
+    )
+    encrypted_token = models.TextField()
+    github_username = models.CharField(max_length=200, blank=True)
+    connected_at = models.DateTimeField(auto_now_add=True)
+    last_validated_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"GitHub: {self.github_username or self.owner.username}"

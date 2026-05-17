@@ -2,12 +2,15 @@ import hashlib
 from django.db import models
 from django.utils import timezone
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Project, Sprint, Task, DocPage, DevLogEntry, Snippet, EnvVariable
-from .serializers import ProjectSerializer, SprintSerializer, TaskSerializer, DocPageSerializer, DevLogEntrySerializer, SnippetSerializer, EnvVariableSerializer
+from .models import Project, Sprint, Task, DocPage, DevLogEntry, Snippet, EnvVariable, GithubAccount, Conversation, Message
+from .serializers import ProjectSerializer, SprintSerializer, TaskSerializer, DocPageSerializer, DevLogEntrySerializer, SnippetSerializer, EnvVariableSerializer, GithubAccountSerializer, ConversationSerializer, MessageSerializer
+from .crypto import encrypt, decrypt
+from .github_client import GithubClient, GithubError
+from .agent.graph import run_agent
+from .agent.tools import apply_mutation
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -290,3 +293,226 @@ class DashboardView(APIView):
             'recent_devlog': recent_devlog,
             'stats': stats,
         })
+
+
+# ─── GitHub integration ───────────────────────────────────────────────────────
+# All four endpoints are scoped to request.user — a user can never see or touch
+# another user's GitHub account.
+
+class GithubAccountView(APIView):
+    """GET / POST / DELETE the current user's GitHub connection.
+
+    POST  /api/github/account/   body: {"token": "ghp_..."}  → validate + save
+    GET   /api/github/account/   → connection status (never returns the token)
+    DELETE /api/github/account/  → disconnect
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        acct = GithubAccount.objects.filter(owner=request.user).first()
+        if not acct:
+            return Response({'connected': False})
+        return Response({
+            'connected': True,
+            **GithubAccountSerializer(acct).data,
+        })
+
+    def post(self, request):
+        token = (request.data.get('token') or '').strip()
+        if not token:
+            return Response({'detail': 'token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate the token by calling GitHub before saving anything.
+        try:
+            profile = GithubClient(token).validate()
+        except GithubError as e:
+            return Response({'detail': str(e)}, status=e.status or status.HTTP_400_BAD_REQUEST)
+
+        acct, _ = GithubAccount.objects.update_or_create(
+            owner=request.user,
+            defaults={
+                'encrypted_token': encrypt(token),
+                'github_username': profile.get('login', ''),
+                'last_validated_at': timezone.now(),
+            },
+        )
+        return Response({
+            'connected': True,
+            **GithubAccountSerializer(acct).data,
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        GithubAccount.objects.filter(owner=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class GithubReposView(APIView):
+    """GET /api/github/repos/ — list the current user's repos for the link-dropdown."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        acct = GithubAccount.objects.filter(owner=request.user).first()
+        if not acct:
+            return Response({'detail': 'GitHub not connected'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            repos = GithubClient(decrypt(acct.encrypted_token)).list_repos()
+        except GithubError as e:
+            return Response({'detail': str(e)}, status=e.status or status.HTTP_502_BAD_GATEWAY)
+
+        # Return only the fields the UI actually needs
+        return Response([
+            {
+                'full_name': r['full_name'],
+                'name': r['name'],
+                'private': r['private'],
+                'default_branch': r.get('default_branch', 'main'),
+                'pushed_at': r.get('pushed_at'),
+            }
+            for r in repos
+        ])
+
+
+# ─── AI conversations ─────────────────────────────────────────────────────────
+
+class ConversationViewSet(viewsets.ModelViewSet):
+    """CRUD for chat conversations within a project.
+
+    GET    /api/conversations/?project=:id   list chats for a project
+    POST   /api/conversations/               create new (body: {project, title?})
+    PATCH  /api/conversations/:id/           rename
+    DELETE /api/conversations/:id/           delete + cascade messages
+    """
+    serializer_class = ConversationSerializer
+
+    def get_queryset(self):
+        # project__owner scoping ensures a user can't reach another user's chats
+        qs = Conversation.objects.filter(project__owner=self.request.user)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        return qs
+
+    def perform_create(self, serializer):
+        # Reject any attempt to attach a conversation to a project the user doesn't own
+        project = serializer.validated_data['project']
+        if project.owner_id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Not your project.")
+        serializer.save()
+
+
+class MessagesView(APIView):
+    """List or send messages within a single conversation.
+
+    GET  /api/conversations/:id/messages/    full history
+    POST /api/conversations/:id/messages/    body: {content} — saves user msg,
+                                              calls LLM, saves + returns assistant reply
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _get_conversation(self, request, conv_id: int) -> Conversation:
+        # Scoped via project owner — 404 if not theirs
+        return Conversation.objects.get(pk=conv_id, project__owner=request.user)
+
+    def get(self, request, conv_id):
+        try:
+            conv = self._get_conversation(request, conv_id)
+        except Conversation.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(MessageSerializer(conv.messages.all(), many=True).data)
+
+    def post(self, request, conv_id):
+        try:
+            conv = self._get_conversation(request, conv_id)
+        except Conversation.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        content = (request.data.get('content') or '').strip()
+        if not content:
+            return Response({'detail': 'content is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1) Persist the user message FIRST — so if the LLM call fails the user's
+        #    message isn't lost and they can retry.
+        user_msg = Message.objects.create(conversation=conv, role='user', content=content)
+
+        # 2) Run the agent — it can call read tools (which execute) and write tools
+        #    (which queue mutations on pending_sink for user confirmation).
+        try:
+            reply_text, tool_calls_made, pending_mutations = run_agent(conv, content)
+        except Exception as e:
+            return Response({'detail': f'Agent error: {e}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        # 3) Persist the assistant reply with its tool trace + any pending writes.
+        assistant_msg = Message.objects.create(
+            conversation=conv,
+            role='assistant',
+            content=reply_text,
+            tool_calls=tool_calls_made,
+            pending_mutations=pending_mutations,
+        )
+
+        # 5) Bump the conversation's updated_at so it floats to the top of the sidebar.
+        conv.save(update_fields=['updated_at'])
+
+        # 6) Return both messages so the frontend can append without refetching.
+        return Response({
+            'user': MessageSerializer(user_msg).data,
+            'assistant': MessageSerializer(assistant_msg).data,
+        }, status=status.HTTP_201_CREATED)
+
+
+class ApplyMutationsView(APIView):
+    """POST /api/conversations/:conv_id/messages/:msg_id/apply/
+    Executes all queued mutations on a message. Idempotent — if already
+    applied, returns 200 with the previous results.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conv_id, msg_id):
+        try:
+            msg = Message.objects.select_related('conversation__project').get(
+                pk=msg_id, conversation_id=conv_id,
+                conversation__project__owner=request.user,
+            )
+        except Message.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if msg.applied_at:
+            return Response({'detail': 'Already applied.', 'results': msg.tool_calls or []})
+
+        if not msg.pending_mutations:
+            return Response({'detail': 'Nothing to apply.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        project = msg.conversation.project
+        results = [apply_mutation(project, m) for m in msg.pending_mutations]
+
+        # Mark the message as applied. Keep the original pending_mutations so the
+        # UI can still show what was proposed; record results separately.
+        msg.applied_at = timezone.now()
+        msg.tool_calls = list(msg.tool_calls or []) + [
+            {'tool': m['tool'], 'args': m['args'], 'result': r}
+            for m, r in zip(msg.pending_mutations, results)
+        ]
+        msg.pending_mutations = []
+        msg.save(update_fields=['applied_at', 'tool_calls', 'pending_mutations'])
+
+        return Response({
+            'message': MessageSerializer(msg).data,
+            'results': results,
+        })
+
+
+class DiscardMutationsView(APIView):
+    """POST /api/conversations/:conv_id/messages/:msg_id/discard/
+    Clear the pending mutations without applying them."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conv_id, msg_id):
+        updated = Message.objects.filter(
+            pk=msg_id, conversation_id=conv_id,
+            conversation__project__owner=request.user,
+            applied_at__isnull=True,
+        ).update(pending_mutations=[])
+        if not updated:
+            return Response({'detail': 'Not found or already applied.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'detail': 'Discarded.'})

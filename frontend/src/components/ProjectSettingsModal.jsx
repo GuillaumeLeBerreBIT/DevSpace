@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Trash2 } from 'lucide-react';
 import { useUpdateProject, useDeleteProject } from '../hooks/useProjects';
+import { useGithubAccount, useGithubRepos } from '../hooks/useGithub';
 
 const PROJECT_COLORS = [
   '#7F77DD', '#4d9aff', '#46a758', '#e5484d',
@@ -21,10 +22,15 @@ export const ProjectSettingsModal = ({ project, onClose, onDeleted }) => {
   const [status, setStatus] = useState(project.status || 'Active');
   const [stack, setStack] = useState((project.stack || []).join(', '));
   const [vaultTimeout, setVaultTimeout] = useState(project.vault_timeout ?? 15);
+  const [githubRepo, setGithubRepo] = useState(project.github_repo || '');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
+
+  const { data: github } = useGithubAccount();
+  // Only fetch the repo list when the user is connected — saves a request otherwise
+  const { data: repos, isLoading: reposLoading } = useGithubRepos(!!github?.connected);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -37,6 +43,7 @@ export const ProjectSettingsModal = ({ project, onClose, onDeleted }) => {
         status,
         stack: stack.split(',').map(s => s.trim()).filter(Boolean),
         vault_timeout: Number(vaultTimeout) || 15,
+        github_repo: githubRepo,
       },
       { onSuccess: onClose }
     );
@@ -88,6 +95,34 @@ export const ProjectSettingsModal = ({ project, onClose, onDeleted }) => {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="proj-stack">Stack (comma-separated)</Label>
             <Input id="proj-stack" value={stack} onChange={e => setStack(e.target.value)} placeholder="React, TypeScript, Postgres" />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="proj-repo">
+              GitHub repo
+              <span style={{ fontWeight: 400, color: 'var(--fg-faint)', marginLeft: 6, fontSize: 11 }}>optional</span>
+            </Label>
+            {!github?.connected ? (
+              <div style={{ fontSize: 11, color: 'var(--fg-faint)', padding: '6px 0' }}>
+                Connect GitHub in <em>User settings</em> first to link a repo.
+              </div>
+            ) : reposLoading ? (
+              <div style={{ fontSize: 11, color: 'var(--fg-faint)', padding: '6px 0' }}>Loading repos…</div>
+            ) : (
+              <select
+                id="proj-repo"
+                value={githubRepo}
+                onChange={e => setGithubRepo(e.target.value)}
+                style={{ padding: '6px 10px', fontSize: 13, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--fg)', cursor: 'pointer', outline: 'none' }}
+              >
+                <option value="">— Not linked —</option>
+                {repos?.map(r => (
+                  <option key={r.full_name} value={r.full_name}>
+                    {r.full_name}{r.private ? ' (private)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

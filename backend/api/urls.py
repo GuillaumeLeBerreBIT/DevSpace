@@ -14,6 +14,7 @@ router.register(r'docs', views.DocPageViewSet, basename='doc')
 router.register(r'devlog', views.DevLogEntryViewSet, basename='devlog')
 router.register(r'snippets', views.SnippetViewSet, basename='snippet')
 router.register(r'env-vars', views.EnvVariableViewSet, basename='envvar')
+router.register(r'conversations', views.ConversationViewSet, basename='conversation')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -21,6 +22,12 @@ urlpatterns = [
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
     path('projects/<str:project_id>/unlock-vault/', views.VaultUnlockView.as_view(), name='vault-unlock'),
     path('projects/<str:project_id>/set-vault-password/', views.VaultSetPasswordView.as_view(), name='vault-set-password'),
+    # GitHub integration — per-user account, repo selection happens via PATCH /api/projects/:id/
+    path('github/account/', views.GithubAccountView.as_view(), name='github-account'),
+    path('github/repos/', views.GithubReposView.as_view(), name='github-repos'),
+    path('conversations/<int:conv_id>/messages/', views.MessagesView.as_view(), name='messages'),
+    path('conversations/<int:conv_id>/messages/<int:msg_id>/apply/', views.ApplyMutationsView.as_view(), name='apply-mutations'),
+    path('conversations/<int:conv_id>/messages/<int:msg_id>/discard/', views.DiscardMutationsView.as_view(), name='discard-mutations'),
     # JWT endpoints — POST /api/token/ returns access + refresh tokens
     # POST /api/token/refresh/ takes a refresh token and returns a new access token
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

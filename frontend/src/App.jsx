@@ -24,6 +24,7 @@ import { DocsView } from './components/views/DocsView';
 import { DevLogView } from './components/views/DevLogView';
 import { StackView } from './components/views/StackView';
 import { SnippetVaultView } from './components/views/SnippetVaultView';
+import { AIView } from './components/views/AIView';
 
 const formatNow = () => {
   const d = new Date();
@@ -123,6 +124,7 @@ const Sidebar = ({ project, sprints, tasks = [], activeView, activeSprint, onVie
         <NavItem icon="log" label="Dev log" active={activeView === 'devlog'} onClick={() => onViewChange('devlog')} />
         <NavItem icon="layers" label="Stack" active={activeView === 'stack'} onClick={() => onViewChange('stack')} />
         <NavItem icon="snippet" label="Snippet vault" active={activeView === 'snippets'} onClick={() => onViewChange('snippets')} />
+        <NavItem icon="sparkle" label="AI agent" active={activeView === 'ai'} onClick={() => onViewChange('ai')} />
       </nav>
 
       <div className="sidebar__footer">
@@ -186,6 +188,7 @@ const TopBar = ({ project, view, sprint, onNewTask }) => {
     devlog: 'Dev log',
     stack: 'Stack & env',
     snippets: 'Snippet vault',
+    ai: 'AI agent',
     dashboard: 'Dashboard',
   };
 
@@ -348,6 +351,7 @@ const ProjectView = ({ project, onDeleted, user, pendingNavigate, onNavigateCons
           {view === 'devlog' && <DevLogView project={project} />}
           {view === 'stack' && <StackView project={project} onOpenSettings={() => setShowSettings(true)} />}
           {view === 'snippets' && <SnippetVaultView project={project} />}
+          {view === 'ai' && <AIView project={project} />}
         </div>
       </div>
 
