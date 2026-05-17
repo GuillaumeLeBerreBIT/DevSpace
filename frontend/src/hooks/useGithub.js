@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 // GET /api/github/account/ — { connected, github_username?, connected_at?, last_validated_at? }
@@ -18,9 +19,10 @@ export function useConnectGithub() {
     mutationFn: (token) => api.post('/github/account/', { token }).then(res => res.data),
     onSuccess: (data) => {
       queryClient.setQueryData(['github', 'account'], data);
-      // New connection means the user's repo list is now available — bust any cache
       queryClient.invalidateQueries({ queryKey: ['github', 'repos'] });
+      toast.success('GitHub connected');
     },
+    onError: () => toast.error('Failed to connect GitHub — check your token'),
   });
 }
 
@@ -32,7 +34,9 @@ export function useDisconnectGithub() {
     onSuccess: () => {
       queryClient.setQueryData(['github', 'account'], { connected: false });
       queryClient.removeQueries({ queryKey: ['github', 'repos'] });
+      toast.success('GitHub disconnected');
     },
+    onError: () => toast.error('Failed to disconnect GitHub'),
   });
 }
 

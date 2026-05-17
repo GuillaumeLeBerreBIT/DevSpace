@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -18,7 +19,6 @@ export const CreateProjectModal = ({ onClose, onCreated }) => {
   const [tagline, setTagline] = useState('');
   const [color, setColor] = useState(PROJECT_COLORS[0]);
   const [stack, setStack] = useState('');
-  const [error, setError] = useState(null);
 
   const createProject = useCreateProject();
 
@@ -41,7 +41,6 @@ export const CreateProjectModal = ({ onClose, onCreated }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setError(null);
     if (!name.trim() || !key.trim()) return;
 
     createProject.mutate(
@@ -59,11 +58,9 @@ export const CreateProjectModal = ({ onClose, onCreated }) => {
           onClose();
         },
         onError: (err) => {
-          // Surface backend validation errors (e.g. duplicate key) so the user can fix them
           const data = err?.response?.data;
-          if (data?.key) setError(`Key: ${data.key[0]}`);
-          else if (typeof data === 'string') setError(data);
-          else setError('Failed to create project. Try a different key.');
+          if (data?.key) toast.error(`Key: ${data.key[0]}`);
+          else toast.error('Failed to create project — try a different key');
         },
       }
     );
@@ -136,11 +133,6 @@ export const CreateProjectModal = ({ onClose, onCreated }) => {
             </div>
           </div>
 
-          {error && (
-            <div style={{ padding: '8px 12px', background: 'var(--red-soft, rgba(229,72,77,0.08))', border: '1px solid var(--red)', borderRadius: 6, fontSize: 12, color: 'var(--red)' }}>
-              {error}
-            </div>
-          )}
         </form>
 
         <DialogFooter>

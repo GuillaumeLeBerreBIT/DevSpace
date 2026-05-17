@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from './Icon';
-import { TypePill, LabelChip, PointsBadge, CarryoverBadge, Pill } from './Components';
+import { TypePill, LabelChip, CarryoverBadge, Pill } from './Components';
 import { Button } from './ui/button';
 import { useUpdateTask, useDeleteTask } from '../hooks/useTasks';
 import { X, Trash2 } from 'lucide-react';
@@ -45,7 +45,7 @@ export const TaskPanel = ({ task, onClose, allTasks, sprints = [] }) => {
   const [editingField, setEditingField] = useState(null); // 'title' | 'description' | null
 
   // Holds the value before editing starts so Escape can revert
-  const editSnapshot = React.useRef('');
+  const editSnapshot = useRef('');
 
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();

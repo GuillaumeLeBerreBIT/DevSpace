@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export function useSnippets(projectId) {
@@ -13,10 +14,11 @@ export function useCreateSnippet() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.post('/snippets/', data).then(res => res.data),
-    onSuccess: (newSnippet) => {
-      // Invalidate both the project-scoped and global snippet lists
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['snippets'] });
+      toast.success('Snippet created');
     },
+    onError: () => toast.error('Failed to create snippet'),
   });
 }
 
@@ -26,6 +28,8 @@ export function useDeleteSnippet() {
     mutationFn: ({ id }) => api.delete(`/snippets/${id}/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['snippets'] });
+      toast.success('Snippet deleted');
     },
+    onError: () => toast.error('Failed to delete snippet'),
   });
 }

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export function useDocs(projectId) {
@@ -16,6 +17,7 @@ export function useCreateDoc() {
     onSuccess: (newDoc) => {
       queryClient.invalidateQueries({ queryKey: ['docs', newDoc.project] });
     },
+    onError: () => toast.error('Failed to create page'),
   });
 }
 
@@ -26,16 +28,18 @@ export function useUpdateDoc() {
     onSuccess: (updatedDoc) => {
       queryClient.invalidateQueries({ queryKey: ['docs', updatedDoc.project] });
     },
+    onError: () => toast.error('Failed to save page'),
   });
 }
 
 export function useDeleteDoc() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, projectId }) => api.delete(`/docs/${id}/`),
+    mutationFn: ({ id }) => api.delete(`/docs/${id}/`),
     onSuccess: (_, variables) => {
-      // DELETE returns no body — we get projectId from the variables we passed in
       queryClient.invalidateQueries({ queryKey: ['docs', variables.projectId] });
+      toast.success('Page deleted');
     },
+    onError: () => toast.error('Failed to delete page'),
   });
 }

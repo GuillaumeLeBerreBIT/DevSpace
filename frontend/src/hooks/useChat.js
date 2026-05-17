@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 // ─── Conversations (CRUD) ────────────────────────────────────────────────────
@@ -34,7 +35,9 @@ export function useDeleteConversation() {
     mutationFn: ({ id }) => api.delete(`/conversations/${id}/`),
     onSuccess: (_, { projectId }) => {
       qc.invalidateQueries({ queryKey: ['conversations', projectId] });
+      toast.success('Conversation deleted');
     },
+    onError: () => toast.error('Failed to delete conversation'),
   });
 }
 
@@ -54,11 +57,10 @@ export function useSendMessage() {
     mutationFn: ({ conversationId, content }) =>
       api.post(`/conversations/${conversationId}/messages/`, { content }).then(r => r.data),
     onSuccess: (data, { conversationId }) => {
-      // Append both the user and assistant messages to the cache without refetching
       qc.setQueryData(['messages', conversationId], (prev = []) => [...prev, data.user, data.assistant]);
-      // Conversation's updated_at changed → resort the sidebar
       qc.invalidateQueries({ queryKey: ['conversations'] });
     },
+    onError: () => toast.error('Failed to send message'),
   });
 }
 
@@ -71,17 +73,17 @@ export function useApplyMutations() {
     mutationFn: ({ conversationId, messageId }) =>
       api.post(`/conversations/${conversationId}/messages/${messageId}/apply/`).then(r => r.data),
     onSuccess: (data, { conversationId }) => {
-      // Replace the message in the messages cache with the new state (applied_at set, pending cleared)
       if (data.message) {
         qc.setQueryData(['messages', conversationId], (prev = []) =>
           prev.map(m => m.id === data.message.id ? data.message : m)
         );
       }
-      // The agent might have touched any of these — invalidate by prefix
       ['tasks', 'sprints', 'devlog', 'snippets', 'docs', 'dashboard'].forEach(key =>
         qc.invalidateQueries({ queryKey: [key] })
       );
+      toast.success('Changes applied');
     },
+    onError: () => toast.error('Failed to apply changes'),
   });
 }
 
@@ -91,10 +93,10 @@ export function useDiscardMutations() {
     mutationFn: ({ conversationId, messageId }) =>
       api.post(`/conversations/${conversationId}/messages/${messageId}/discard/`).then(r => r.data),
     onSuccess: (_, { conversationId, messageId }) => {
-      // Clear pending_mutations on the cached message
       qc.setQueryData(['messages', conversationId], (prev = []) =>
         prev.map(m => m.id === messageId ? { ...m, pending_mutations: [] } : m)
       );
     },
+    onError: () => toast.error('Failed to discard changes'),
   });
 }

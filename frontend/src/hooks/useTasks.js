@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export function useTasks(projectId, sprintId) {
@@ -24,10 +25,10 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (data) => api.post('/tasks/', data).then(res => res.data),
     onSuccess: (newTask) => {
-      // Invalidate all task-related cache entries for this project
-      // — the new task could appear in the sprint view, backlog, or bug tracker
       queryClient.invalidateQueries({ queryKey: ['tasks', newTask.project] });
+      toast.success('Task created');
     },
+    onError: () => toast.error('Failed to create task'),
   });
 }
 
@@ -38,16 +39,18 @@ export function useUpdateTask() {
     onSuccess: (updatedTask) => {
       queryClient.invalidateQueries({ queryKey: ['tasks', updatedTask.project] });
     },
+    onError: () => toast.error('Failed to save task'),
   });
 }
 
 export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    // DELETE returns 204 No Content, so we pass projectId separately for cache invalidation
     mutationFn: ({ id }) => api.delete(`/tasks/${id}/`),
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      toast.success('Task deleted');
     },
+    onError: () => toast.error('Failed to delete task'),
   });
 }

@@ -1,7 +1,7 @@
-import React from 'react';
 import { Icon } from './Icon';
 import { Button } from './ui/button';
-import { Pill, StatusPill, ProgressRing, ProjectInitial } from './Components';
+import { Pill, ProgressRing, ProjectInitial } from './Components';
+import { EmptyState } from './EmptyState';
 import { useProjects } from '../hooks/useProjects';
 import { useDashboard } from '../hooks/useDashboard';
 
@@ -45,12 +45,14 @@ export const Dashboard = ({ onProjectSelect, onTaskClick, onCreateProject }) => 
             <ProjectCard key={p.id} project={p} onClick={() => onProjectSelect(p)} />
           ))}
           {projects.length === 0 && (
-            <div
-              onClick={onCreateProject}
-              style={{ gridColumn: '1 / -1', padding: 40, textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 10, color: 'var(--fg-faint)', cursor: 'pointer' }}
-            >
-              <Icon name="plus" size={20} style={{ display: 'block', margin: '0 auto 8px' }} />
-              <div style={{ fontSize: 13 }}>Create your first project</div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <EmptyState
+                icon="home"
+                heading="No projects yet"
+                subtext="Create your first project to start tracking sprints, tasks, and docs."
+                action={onCreateProject}
+                actionLabel="New project"
+              />
             </div>
           )}
         </div>

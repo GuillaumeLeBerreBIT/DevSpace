@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export function useSprints(projectId) {
@@ -15,9 +16,10 @@ export function useCreateSprint() {
   return useMutation({
     mutationFn: (data) => api.post('/sprints/', data).then(res => res.data),
     onSuccess: (newSprint) => {
-      // Invalidate only this project's sprint list, not all sprint cache entries
       queryClient.invalidateQueries({ queryKey: ['sprints', newSprint.project] });
+      toast.success('Sprint created');
     },
+    onError: () => toast.error('Failed to create sprint'),
   });
 }
 
@@ -28,5 +30,6 @@ export function useUpdateSprint() {
     onSuccess: (updatedSprint) => {
       queryClient.invalidateQueries({ queryKey: ['sprints', updatedSprint.project] });
     },
+    onError: () => toast.error('Failed to save sprint'),
   });
 }

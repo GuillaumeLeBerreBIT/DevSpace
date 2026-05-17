@@ -1,13 +1,39 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Icon } from '../Icon';
 import { Input } from '../ui/input';
-import { TypePill, StatusPill, PriorityDot, PointsBadge, LabelChip, Pill, Select } from '../Components';
+import { TypePill, StatusPill, PriorityDot, PointsBadge, LabelChip, Select } from '../Components';
+import { Skeleton } from '../ui/skeleton';
+import { EmptyState } from '../EmptyState';
 
 const TYPE_FILTERS = ['All', 'Feature', 'Bug', 'Fix', 'Chore', 'Idea', 'Docs'];
 const STATUS_FILTERS = ['All', 'Backlog', 'To do', 'In progress', 'Blocked', 'In review', 'Done'];
 const PRIORITY_FILTERS = ['All', 'Urgent', 'High', 'Medium', 'Low'];
 
-export const BacklogView = ({ tasks, sprints, onTaskClick }) => {
+const BacklogSkeleton = () => (
+  <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 24px' }}>
+    {[1, 2, 3].map(g => (
+      <div key={g} style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', marginBottom: 4 }}>
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-6 rounded-full" />
+        </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {[1, 2, 3, 4].map(r => (
+            <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: r < 4 ? '1px solid var(--border-subtle)' : 'none', background: 'var(--bg-surface-2)' }}>
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton className="h-5 w-12 rounded" />
+              <Skeleton className="h-3 w-14" />
+              <Skeleton className={`h-3 flex-1 max-w-[${r % 2 === 0 ? '260px' : '180px'}]`} />
+              <Skeleton className="h-5 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+export const BacklogView = ({ tasks, sprints, isLoading, onTaskClick }) => {
   const [typeFilter, setTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
@@ -86,15 +112,23 @@ export const BacklogView = ({ tasks, sprints, onTaskClick }) => {
       </div>
 
       {/* Task list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 24px' }}>
-        {groups.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-faint)', fontSize: 13 }}>No tasks match the current filters</div>
-        ) : (
-          groups.map(group => (
-            <TaskGroup key={group.key} group={group} onTaskClick={onTaskClick} sprints={sprints} />
-          ))
-        )}
-      </div>
+      {isLoading ? (
+        <BacklogSkeleton />
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 24px' }}>
+          {groups.length === 0 ? (
+            <EmptyState
+              icon="list"
+              heading={tasks.length === 0 ? 'Backlog is empty' : 'No tasks match the current filters'}
+              subtext={tasks.length === 0 ? 'Tasks not assigned to a sprint live here.' : 'Try adjusting your filters.'}
+            />
+          ) : (
+            groups.map(group => (
+              <TaskGroup key={group.key} group={group} onTaskClick={onTaskClick} sprints={sprints} />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

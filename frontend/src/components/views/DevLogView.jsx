@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Icon } from '../Icon';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
+import { Skeleton } from '../ui/skeleton';
+import { EmptyState } from '../EmptyState';
 import { useDevLog, useCreateDevLogEntry, useDeleteDevLogEntry } from '../../hooks/useDevLog';
 
 export const DevLogView = ({ project }) => {
-  const { data: entries = [] } = useDevLog(project.id);
+  const { data: entries = [], isLoading } = useDevLog(project.id);
   const createEntry = useCreateDevLogEntry();
   const deleteEntry = useDeleteDevLogEntry();
   const [composing, setComposing] = useState(false);
@@ -66,16 +68,38 @@ export const DevLogView = ({ project }) => {
         )}
 
         {/* Entries */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {entries.map((entry, i) => (
-            <LogEntry
-              key={entry.id}
-              entry={entry}
-              isLast={i === entries.length - 1}
-              onDelete={() => deleteEntry.mutate({ id: entry.id, projectId: project.id })}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ padding: '16px 0', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-5/6" />
+              </div>
+            ))}
+          </div>
+        ) : entries.length === 0 ? (
+          <EmptyState
+            icon="log"
+            heading="No entries yet"
+            subtext="Write a dev log entry to capture decisions, progress, and lessons learned."
+          />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {entries.map((entry, i) => (
+              <LogEntry
+                key={entry.id}
+                entry={entry}
+                isLast={i === entries.length - 1}
+                onDelete={() => deleteEntry.mutate({ id: entry.id, projectId: project.id })}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

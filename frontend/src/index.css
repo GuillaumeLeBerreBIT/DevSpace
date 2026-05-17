@@ -72,7 +72,7 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-canvas); 
 
 #root { height: 100%; }
 
-button { font-family: inherit; font-size: inherit; border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; }
+button { font-family: inherit; font-size: inherit; border: 0; background: transparent; color: inherit; cursor: pointer; }
 
 input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
 

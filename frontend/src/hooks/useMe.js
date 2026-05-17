@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export function useMe() {
@@ -12,7 +13,10 @@ export function useUpdateMe() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.patch('/me/', data).then(res => res.data),
-    // Optimistically update the cache so the sidebar updates immediately
-    onSuccess: (updated) => queryClient.setQueryData(['me'], updated),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['me'], updated);
+      toast.success('Settings saved');
+    },
+    onError: () => toast.error('Failed to save settings'),
   });
 }

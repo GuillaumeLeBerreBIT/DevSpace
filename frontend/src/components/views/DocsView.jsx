@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Icon } from '../Icon';
 import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
+import { EmptyState } from '../EmptyState';
 import { useDocs, useCreateDoc, useUpdateDoc, useDeleteDoc } from '../../hooks/useDocs';
 import { useSnippets } from '../../hooks/useSnippets';
 
@@ -22,7 +24,7 @@ const TOOLBAR_ACTIONS = [
 ];
 
 export const DocsView = ({ project }) => {
-  const { data: pages = [] } = useDocs(project.id);
+  const { data: pages = [], isLoading: pagesLoading } = useDocs(project.id);
   const { data: snippets = [] } = useSnippets(project.id);
   const createDoc = useCreateDoc();
   const updateDoc = useUpdateDoc();
@@ -206,7 +208,11 @@ export const DocsView = ({ project }) => {
           <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--fg-faint)', fontWeight: 500 }}>Pages</span>
         </div>
         <div style={{ padding: '8px 8px', flex: 1, overflowY: 'auto' }}>
-          {pages.map(p => (
+          {pagesLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0' }}>
+              {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-7 w-full rounded-md" />)}
+            </div>
+          ) : pages.map(p => (
             <button
               key={p.id}
               onClick={() => setActivePageId(p.id)}
@@ -351,9 +357,11 @@ export const DocsView = ({ project }) => {
               />
             )
           ) : (
-            <div style={{ color: 'var(--fg-faint)', fontSize: 13 }}>
-              {pages.length === 0 ? 'No pages yet — create one to get started.' : 'Select a page'}
-            </div>
+            <EmptyState
+              icon="docs"
+              heading={pages.length === 0 ? 'No pages yet' : 'Select a page'}
+              subtext={pages.length === 0 ? 'Create your first page to start documenting this project.' : undefined}
+            />
           )}
         </div>
       </div>
@@ -374,7 +382,7 @@ const EmbeddedSnippet = ({ snippet, initialOpen = false, label }) => {
       await navigator.clipboard.writeText(snippet.code);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {}
+    } catch { /* clipboard unavailable */ }
   };
 
   // The label override lets users write [my custom label](snippet:7) and have

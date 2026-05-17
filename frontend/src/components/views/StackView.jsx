@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from '../Icon';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { useEnvVars, useCreateEnvVar, useDeleteEnvVar, useUpdateEnvVar, useUnlockVault, useSetVaultPassword } from '../../hooks/useEnvVars';
+import { useEnvVars, useCreateEnvVar, useDeleteEnvVar, useUnlockVault, useSetVaultPassword } from '../../hooks/useEnvVars';
 
 // ─── Vault state machine ───────────────────────────────────────────────────
 // 'no-password'  → vault has no password, vars are visible freely
@@ -15,7 +15,6 @@ export const StackView = ({ project, onOpenSettings }) => {
   const { data: envVars = [] } = useEnvVars(project?.id);
   const createEnvVar = useCreateEnvVar();
   const deleteEnvVar = useDeleteEnvVar();
-  const updateEnvVar = useUpdateEnvVar();
   const unlockVault = useUnlockVault();
   const setVaultPassword = useSetVaultPassword();
 
@@ -33,28 +32,28 @@ export const StackView = ({ project, onOpenSettings }) => {
   const [draftKey, setDraftKey] = useState('');
   const [draftValue, setDraftValue] = useState('');
 
-  const isVaultOpen = !hasVaultPassword || (unlockedUntil && Date.now() < unlockedUntil);
+  // unlockedUntil is cleared by setTimeout when it expires — safe to derive from without Date.now()
+  const isVaultOpen = !hasVaultPassword || !!unlockedUntil;
 
-  // Auto-lock after timeout
+  // Auto-lock after timeout — Math.max(0, ms) handles already-expired timestamps without sync setState
   useEffect(() => {
     if (!unlockedUntil) return;
     const ms = unlockedUntil - Date.now();
-    if (ms <= 0) { setUnlockedUntil(null); return; }
-    const t = setTimeout(() => setUnlockedUntil(null), ms);
+    const t = setTimeout(() => setUnlockedUntil(null), Math.max(0, ms));
     return () => clearTimeout(t);
   }, [unlockedUntil]);
 
-  // Minutes remaining counter (updates every 10s)
+  // Minutes remaining counter (updates every 10s) — reset in cleanup to avoid sync setState
   const [minsLeft, setMinsLeft] = useState(null);
   useEffect(() => {
-    if (!unlockedUntil) { setMinsLeft(null); return; }
+    if (!unlockedUntil) return;
     const update = () => {
       const remaining = Math.ceil((unlockedUntil - Date.now()) / 60000);
       setMinsLeft(remaining > 0 ? remaining : 0);
     };
     update();
     const t = setInterval(update, 10000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); setMinsLeft(null); };
   }, [unlockedUntil]);
 
   const handleUnlock = (password) => {

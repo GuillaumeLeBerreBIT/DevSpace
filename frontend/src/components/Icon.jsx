@@ -1,4 +1,3 @@
-import React from 'react';
 
 const ICON_PATHS = {
   home: <><path d="M3 10.5L12 3l9 7.5" /><path d="M5 9.5V20a1 1 0 001 1h12a1 1 0 001-1V9.5" /></>,

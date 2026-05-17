@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
 import { Icon } from './Icon';
-import { TypePill, StatusPill, PriorityDot, LabelChip, PointsBadge, CarryoverBadge } from './Components';
+import { TypePill, PriorityDot, LabelChip, PointsBadge, CarryoverBadge } from './Components';
 
 const COLUMNS = [
   { id: 'To do', label: 'To do', color: 'var(--fg-dim)' },
@@ -84,7 +83,7 @@ export const Kanban = ({ tasks, onTaskClick }) => {
     if (grouped[t.status]) grouped[t.status].push(t);
   });
 
-  const handleAddTask = (colId) => {
+  const handleAddTask = () => {
     // placeholder — would open a quick-add dialog
   };
 

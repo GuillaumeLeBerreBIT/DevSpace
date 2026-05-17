@@ -1,8 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../Icon';
 import { LabelChip } from '../Components';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Skeleton } from '../ui/skeleton';
+import { EmptyState } from '../EmptyState';
 import { useSnippets, useDeleteSnippet } from '../../hooks/useSnippets';
 import { CreateSnippetModal } from '../CreateSnippetModal';
 
@@ -29,7 +31,7 @@ const LANG_LABELS = {
 const formatLang = (code) => LANG_LABELS[code] || code;
 
 export const SnippetVaultView = ({ project }) => {
-  const { data: snippets = [] } = useSnippets(project?.id);
+  const { data: snippets = [], isLoading } = useSnippets(project?.id);
   const deleteSnippet = useDeleteSnippet();
   const [search, setSearch] = useState('');
   const [langFilter, setLangFilter] = useState('All');
@@ -112,8 +114,22 @@ export const SnippetVaultView = ({ project }) => {
 
         {/* List */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-faint)', fontSize: 12 }}>No snippets found</div>
+          {isLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} style={{ padding: '10px', borderRadius: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Skeleton className="h-2 w-2 rounded-full" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                  <Skeleton className="h-3 w-4/5 ml-4" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '24px 8px', textAlign: 'center', color: 'var(--fg-faint)', fontSize: 12 }}>
+              {snippets.length === 0 ? 'No snippets yet' : 'No snippets match'}
+            </div>
           ) : filtered.map(s => (
             <button
               key={s.id}
@@ -187,15 +203,14 @@ export const SnippetVaultView = ({ project }) => {
           </div>
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'grid', placeItems: 'center', color: 'var(--fg-faint)', fontSize: 13, textAlign: 'center', padding: 40 }}>
-          <div>
-            <Icon name="snippet" size={28} style={{ display: 'block', margin: '0 auto 12px', opacity: 0.5 }} />
-            <p style={{ margin: '0 0 14px' }}>No snippets yet</p>
-            <Button size="sm" onClick={() => setShowCreate(true)}>
-              <Icon name="plus" size={13} />
-              Create your first snippet
-            </Button>
-          </div>
+        <div style={{ flex: 1, display: 'flex' }}>
+          <EmptyState
+            icon="snippet"
+            heading="No snippets yet"
+            subtext="Save reusable code blocks here — scripts, configs, templates, one-liners."
+            action={() => setShowCreate(true)}
+            actionLabel="New snippet"
+          />
         </div>
       )}
 

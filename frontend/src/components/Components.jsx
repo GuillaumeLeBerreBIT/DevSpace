@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import { Icon } from './Icon';
 
 export const Pill = ({ kind, children, className = '' }) => {

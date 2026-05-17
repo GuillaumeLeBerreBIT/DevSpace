@@ -17,5 +17,11 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // allowConstantExport: hooks files and utility exports alongside components are intentional
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // sync-state-from-props patterns in effects are intentional (auto-select, cursor reset, etc.)
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

@@ -381,7 +381,161 @@ If any step fails, the request is rejected with a 401 before your code runs.
 
 ---
 
-## 5. Management Commands
+## 5. Rate Limiting & Throttling
+
+### What is throttling and why does DevSpace need it?
+
+Throttling means: "this client has made too many requests in a given window — return 429 and tell them to slow down." Without it:
+
+- A bug in the React app could loop and POST to `/api/conversations/:id/messages/` thousands of times, burning your entire Groq API quota in minutes.
+- A brute-force script could hammer `/api/token/` with credential guesses.
+
+DRF has throttling built in — no external service needed.
+
+---
+
+### How DRF throttling works
+
+Every throttle class does two things:
+
+1. **`get_cache_key(request, view)`** — generates a string that identifies "who" is being throttled. The key is looked up in the cache.
+2. **`allow_request(request, view)`** — reads the request history for that key, checks it against the rate, and returns `True` (allow) or `False` (block with 429).
+
+The two base classes differ only in how they build the cache key:
+
+| Class | Cache key | Requires auth |
+|---|---|---|
+| `UserRateThrottle` | `throttle_user_<user_id>` | Yes |
+| `AnonRateThrottle` | `throttle_anon_<ip_address>` | No |
+
+When a limit is hit, DRF automatically returns `HTTP 429 Too Many Requests` with a `Retry-After` header — no extra code needed in the view.
+
+---
+
+### The three throttle scopes in DevSpace
+
+```python
+# backend/backend/settings.py
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'user':          os.environ.get('THROTTLE_USER', '2000/day'),
+        'agent_message': os.environ.get('THROTTLE_AGENT_MESSAGE', '20/minute'),
+        'login':         os.environ.get('THROTTLE_LOGIN', '5/minute'),
+    },
+}
+```
+
+The `scope` attribute on a throttle class is the key that maps to `DEFAULT_THROTTLE_RATES`:
+
+```python
+# backend/api/throttles.py
+
+class AgentMessageThrottle(UserRateThrottle):
+    scope = 'agent_message'   # → looks up 'agent_message' in DEFAULT_THROTTLE_RATES
+
+class LoginThrottle(AnonRateThrottle):
+    scope = 'login'           # → looks up 'login' in DEFAULT_THROTTLE_RATES
+```
+
+**`user` (global, 2000/day)** — the default `UserRateThrottle` applied to all authenticated endpoints. A safety net for runaway clients. Almost never hit in real use.
+
+**`agent_message` (20/minute)** — applied only to POST on `/api/conversations/:id/messages/`. Each POST triggers a LangGraph agent that can make up to 12 LLM hops. 20 per minute = 240 LLM calls per minute max. Protects the Groq quota.
+
+**`login` (5/minute, IP-keyed)** — applied to POST on `/api/token/`. 5 attempts per minute stops brute-force. Uses IP instead of user ID because the user isn't authenticated yet — there's no user ID to key on.
+
+---
+
+### Why IP-keyed throttling is fine for login here
+
+`AnonRateThrottle` keys on the client's IP address. The weakness: all users behind the same NAT (office, VPN) share one bucket — one person's brute-force exhausts the allowance for everyone else.
+
+For a **single-user personal tool**, this doesn't apply. There's one legitimate user. IP-keyed is the correct approach because user-keyed simply can't work here — `request.user` is `AnonymousUser` at `/api/token/`.
+
+If you ever went multi-user, you'd add a username-keyed variant:
+
+```python
+class LoginThrottle(AnonRateThrottle):
+    def get_cache_key(self, request, view):
+        username = request.data.get('username', '')
+        return f'login_{username}_{self.get_ident(request)}'
+        # keyed on: username + IP combined
+        # → brute-forcing account A doesn't block account B
+```
+
+---
+
+### Applying throttles: class attribute vs `get_throttles()`
+
+**Class attribute** — applies the same throttle to every HTTP method on the view:
+
+```python
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    throttle_classes = [LoginThrottle]
+    # Every POST to /api/token/ is throttled — there are no other methods here
+```
+
+**`get_throttles()` override** — lets you throttle selectively by HTTP method:
+
+```python
+class MessagesView(APIView):
+    def get_throttles(self):
+        if self.request.method == 'POST':
+            return [AgentMessageThrottle()]
+        return []
+        # GET /messages/ (read history) — unthrottled
+        # POST /messages/ (trigger LLM agent) — throttled at 20/minute
+```
+
+Use `get_throttles()` when different verbs on the same endpoint should have different limits. Reading message history is free — triggering an LLM call costs money.
+
+---
+
+### The cache backend for throttle counters
+
+DRF throttling stores request timestamps in the cache. `LocMemCache` is Django's in-process memory cache — no Redis, no external service needed:
+
+```python
+# backend/backend/settings.py
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
+```
+
+**Tradeoff:** the cache resets on every redeploy (no state persists across restarts). For a single-user tool on a single Render instance this is fine. If you ever run multiple processes or workers, you'd need Redis (`django.core.cache.backends.redis.RedisCache`) so all processes share the same counter.
+
+---
+
+### Configuring limits via environment variables
+
+All three rates are read from env vars with hardcoded defaults:
+
+```python
+'DEFAULT_THROTTLE_RATES': {
+    'user':          os.environ.get('THROTTLE_USER', '2000/day'),
+    'agent_message': os.environ.get('THROTTLE_AGENT_MESSAGE', '20/minute'),
+    'login':         os.environ.get('THROTTLE_LOGIN', '5/minute'),
+},
+```
+
+The format DRF expects is `"<count>/<period>"` where period is `second`, `minute`, `hour`, or `day`.
+
+To override locally — uncomment in `.env.backend`:
+```bash
+# THROTTLE_USER=2000/day
+# THROTTLE_AGENT_MESSAGE=20/minute
+# THROTTLE_LOGIN=5/minute
+```
+
+To override on Render — add the var in the dashboard Environment tab and redeploy. No code change needed.
+
+---
+
+## 6. Management Commands
 
 A management command is a Python script you run via `python manage.py <name>`. Django discovers them by convention: the file must live at `app/management/commands/<name>.py` and the class must extend `BaseCommand` and implement `handle()`. No registration needed.
 
@@ -389,7 +543,7 @@ We use the `seed` command to populate the database with sample data. It's idempo
 
 ---
 
-## 6. TanStack Query
+## 7. TanStack Query
 
 ### Why TanStack Query instead of axios + useEffect?
 With plain `useEffect`:
@@ -654,7 +808,7 @@ Both mutations invalidate the entire `['snippets']` prefix to refresh both the g
 
 ---
 
-## 7. Token in Memory (Security)
+## 8. Token in Memory (Security)
 
 ### Why not localStorage?
 `localStorage` is accessible by any JavaScript running on the page. If there is ever an XSS vulnerability (injected script tag, malicious dependency), the attacker can run `localStorage.getItem('token')` and steal your session.
@@ -683,7 +837,7 @@ You set the token once at login and every subsequent request automatically carri
 
 ---
 
-## 8. React Context for Auth
+## 9. React Context for Auth
 
 `createContext` + `Provider` is React's built-in dependency injection. Instead of passing `isLoggedIn` and `login()` as props through every component (prop drilling), you wrap the whole app in `<AuthProvider>` once and any component can call `useAuth()` to get them.
 
@@ -698,7 +852,7 @@ The flow:
 
 ---
 
-## 9. Infrastructure — How DevSpace Is Built and Linked
+## 10. Infrastructure — How DevSpace Is Built and Linked
 
 ### The full system at a glance
 
@@ -955,9 +1109,9 @@ SHA-256 is used (not bcrypt) because this is a personal single-user tool. For a 
 
 ---
 
-## 10. Planned Features — Architecture Notes
+## 11. Planned Features — Architecture Notes
 
-### 10.1 Teams / Multi-user
+### 11.1 Teams / Multi-user
 
 **What changes:** Currently every viewset filters by `project__owner=request.user`. With teams, access is via a membership table.
 
@@ -992,7 +1146,7 @@ def get_queryset(self):
 
 ---
 
-### 10.2 GitHub Integration
+### 11.2 GitHub Integration
 
 **New field on Project:**
 ```python
@@ -1024,7 +1178,7 @@ def get_repo_files(repo, token):
 
 ---
 
-### 10.3 AI Agent (Claude API)
+### 11.3 AI Agent (Claude API)
 
 **Setup:**
 ```bash

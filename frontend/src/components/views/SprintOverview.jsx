@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Icon } from '../Icon';
 import { Button } from '../ui/button';
-import { TypePill, StatusPill, PriorityDot, PointsBadge, CarryoverBadge, ProgressRing, ProgressBar, PlaceholderRect } from '../Components';
+import { TypePill, PriorityDot, PointsBadge, CarryoverBadge, ProgressRing } from '../Components';
 import { Kanban } from '../Kanban';
+import { Skeleton } from '../ui/skeleton';
 
 const TYPE_FILTERS = ['All', 'Feature', 'Bug', 'Fix', 'Chore', 'Idea', 'Docs'];
 const PRIORITY_FILTERS = ['All', 'Urgent', 'High', 'Medium', 'Low'];
@@ -16,7 +17,31 @@ const SORT_OPTIONS = [
 
 const PRIORITY_RANK = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
 
-export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint, onCompleteSprint, onStartSprint, onEditSprint }) => {
+const KanbanSkeleton = () => (
+  <div style={{ flex: 1, display: 'flex', gap: 12, padding: '16px 28px', overflowX: 'auto' }}>
+    {['To do', 'In progress', 'In review', 'Done'].map(col => (
+      <div key={col} style={{ minWidth: 240, flex: '0 0 240px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-5 rounded-full" />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[80, 55, 70, 45].map((w, i) => (
+            <div key={i} style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Skeleton className={`h-3 w-[${w}%]`} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Skeleton className="h-4 w-10 rounded" />
+                <Skeleton className="h-4 w-12 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+export const SprintOverview = ({ sprint, tasks, isLoading, onTaskClick, onCreateSprint, onCompleteSprint, onStartSprint, onEditSprint }) => {
   const [view, setView] = useState('board');
   const [typeFilter, setTypeFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
@@ -181,10 +206,11 @@ export const SprintOverview = ({ sprint, tasks, onTaskClick, onCreateSprint, onC
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {view === 'board' && (
+        {isLoading ? (
+          <KanbanSkeleton />
+        ) : view === 'board' ? (
           <Kanban tasks={visibleTasks} onTaskClick={onTaskClick} />
-        )}
-        {view === 'list' && (
+        ) : (
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px' }}>
             <TaskListView tasks={visibleTasks} onTaskClick={onTaskClick} />
           </div>

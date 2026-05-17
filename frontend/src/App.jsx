@@ -1,4 +1,4 @@
-import react, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useProjects } from './hooks/useProjects';
 import { useSprints, useCreateSprint, useUpdateSprint } from './hooks/useSprints';
@@ -247,8 +247,8 @@ const ProjectView = ({ project, onDeleted, user, pendingNavigate, onNavigateCons
   // Once sprints load, default to active sprint (or first); user can override by clicking a sprint
   const resolvedSprint = activeSprint ?? sprints.find(s => s.status === 'active') ?? sprints[0] ?? null;
 
-  const { data: sprintTasks = [] } = useTasks(project.id, resolvedSprint?.id);
-  const { data: backlogTasks = [] } = useBacklog(project.id);
+  const { data: sprintTasks = [], isLoading: sprintTasksLoading } = useTasks(project.id, resolvedSprint?.id);
+  const { data: backlogTasks = [], isLoading: backlogLoading } = useBacklog(project.id);
 
   const createSprint = useCreateSprint();
   const updateSprint = useUpdateSprint();
@@ -334,6 +334,7 @@ const ProjectView = ({ project, onDeleted, user, pendingNavigate, onNavigateCons
             <SprintOverview
               sprint={resolvedSprint}
               tasks={sprintTasks}
+              isLoading={sprintTasksLoading}
               onTaskClick={setSelectedTask}
               onCreateSprint={() => setShowCreateSprint(true)}
               onCompleteSprint={handleCompleteSprint}
@@ -342,10 +343,10 @@ const ProjectView = ({ project, onDeleted, user, pendingNavigate, onNavigateCons
             />
           )}
           {view === 'backlog' && (
-            <BacklogView tasks={backlogTasks} sprints={sprints} onTaskClick={setSelectedTask} />
+            <BacklogView tasks={backlogTasks} sprints={sprints} isLoading={backlogLoading} onTaskClick={setSelectedTask} />
           )}
           {view === 'bugs' && (
-            <BugTrackerView tasks={allTasks} onTaskClick={setSelectedTask} />
+            <BugTrackerView tasks={allTasks} isLoading={backlogLoading || sprintTasksLoading} onTaskClick={setSelectedTask} />
           )}
           {view === 'docs' && <DocsView project={project} />}
           {view === 'devlog' && <DevLogView project={project} />}

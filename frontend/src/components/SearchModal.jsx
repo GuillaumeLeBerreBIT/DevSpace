@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Icon } from './Icon';
 import { useSearch } from '../hooks/useSearch';
 
@@ -73,8 +73,6 @@ export const SearchModal = ({ onClose, onNavigate }) => {
   const showEmpty = query.trim().length >= 2 && !isFetching && !hasResults;
 
   // Build a cursor-index lookup: for each category, which flat index does it start at?
-  let globalIndex = 0;
-
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '12vh' }}
@@ -129,7 +127,6 @@ export const SearchModal = ({ onClose, onNavigate }) => {
                 {/* Result rows */}
                 {items.map((item) => {
                   const isActive = flat[cursor]?._type === key && flat[cursor]?.id === item.id;
-                  globalIndex++;
 
                   return (
                     <button

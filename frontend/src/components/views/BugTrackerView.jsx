@@ -1,12 +1,38 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Icon } from '../Icon';
 import { Input } from '../ui/input';
-import { TypePill, StatusPill, PriorityDot, PointsBadge, LabelChip, Pill } from '../Components';
+import { StatusPill, PriorityDot, PointsBadge } from '../Components';
+import { Skeleton } from '../ui/skeleton';
+import { EmptyState } from '../EmptyState';
 
 const SEVERITIES = ['Critical', 'Major', 'Minor', 'Trivial'];
 const SEVERITY_COLORS = { Critical: 'var(--red)', Major: '#ff8c4d', Minor: 'var(--amber)', Trivial: 'var(--fg-dim)' };
 
-export const BugTrackerView = ({ tasks, onTaskClick }) => {
+const BugListSkeleton = () => (
+  <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 24px' }}>
+    {[1, 2].map(g => (
+      <div key={g} style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', marginBottom: 4 }}>
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-6 rounded-full" />
+        </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {[1, 2, 3].map(r => (
+            <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: r < 3 ? '1px solid var(--border-subtle)' : 'none', background: 'var(--bg-surface-2)' }}>
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton className="h-3 w-14" />
+              <Skeleton className={`h-3 flex-1 max-w-${r % 2 === 0 ? '64' : '48'}`} />
+              <Skeleton className="h-5 w-14 rounded" />
+              <Skeleton className="h-5 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+export const BugTrackerView = ({ tasks, isLoading, onTaskClick }) => {
   const [filter, setFilter] = useState('open');
   const [search, setSearch] = useState('');
 
@@ -74,22 +100,28 @@ export const BugTrackerView = ({ tasks, onTaskClick }) => {
       </div>
 
       {/* Bug list grouped by severity */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 24px' }}>
-        {grouped.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-faint)', fontSize: 13 }}>
-            {filter === 'closed' ? 'No closed bugs' : 'No bugs found'}
-          </div>
-        ) : (
-          grouped.map(group => (
-            <SeverityGroup
-              key={group.severity}
-              severity={group.severity}
-              bugs={group.bugs}
-              onBugClick={onTaskClick}
+      {isLoading ? (
+        <BugListSkeleton />
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px 24px' }}>
+          {grouped.length === 0 ? (
+            <EmptyState
+              icon="bug"
+              heading={filter === 'closed' ? 'No closed bugs yet' : tasks.filter(t => t.type === 'Bug').length === 0 ? 'No bugs reported' : 'No bugs match the current filters'}
+              subtext={filter === 'closed' ? 'Closed bugs will appear here once resolved.' : tasks.filter(t => t.type === 'Bug').length === 0 ? 'Create a task with type Bug to start tracking issues.' : 'Try switching to All or changing the search.'}
             />
-          ))
-        )}
-      </div>
+          ) : (
+            grouped.map(group => (
+              <SeverityGroup
+                key={group.severity}
+                severity={group.severity}
+                bugs={group.bugs}
+                onBugClick={onTaskClick}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

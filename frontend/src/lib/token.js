@@ -7,16 +7,16 @@ const KEY = 'ds_access_token';
 let _token = null;
 
 // On module init, restore from storage if available
-try { _token = localStorage.getItem(KEY); } catch (_) {}
+try { _token = localStorage.getItem(KEY); } catch { /* private browsing */ }
 
 export const getToken = () => _token;
 
 export const setToken = (t) => {
   _token = t;
-  try { localStorage.setItem(KEY, t); } catch (_) {}
+  try { localStorage.setItem(KEY, t); } catch { /* private browsing */ }
 };
 
 export const clearToken = () => {
   _token = null;
-  try { localStorage.removeItem(KEY); } catch (_) {}
+  try { localStorage.removeItem(KEY); } catch { /* private browsing */ }
 };

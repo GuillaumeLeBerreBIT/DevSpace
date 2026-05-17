@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api from '../lib/api';
 
 export function useProjects() {
@@ -13,15 +14,19 @@ export function useCreateProject() {
   return useMutation({
     mutationFn: (data) => api.post('/projects/', data).then(res => res.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    onError: () => toast.error('Failed to create project'),
   });
 }
 
 export function useUpdateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    // PATCH /api/projects/:id/ — send only the fields that changed
     mutationFn: ({ id, ...data }) => api.patch(`/projects/${id}/`, data).then(res => res.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast.success('Project saved');
+    },
+    onError: () => toast.error('Failed to save project'),
   });
 }
 
@@ -30,8 +35,6 @@ export function useDeleteProject() {
   return useMutation({
     mutationFn: ({ id }) => api.delete(`/projects/${id}/`),
     onSuccess: () => {
-      // Invalidate the projects list AND any nested per-project query keys.
-      // The simplest correct thing is to nuke the whole cache for related queries.
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['sprints'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -39,5 +42,6 @@ export function useDeleteProject() {
       queryClient.invalidateQueries({ queryKey: ['devlog'] });
       queryClient.invalidateQueries({ queryKey: ['snippets'] });
     },
+    onError: () => toast.error('Failed to delete project'),
   });
 }
